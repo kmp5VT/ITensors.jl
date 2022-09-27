@@ -19,7 +19,7 @@ end
 @noinline _index_id_rng_length_assert() = @assert false "0 < tid <= length(INDEX_ID_RNGs)"
 
 """
-An `Index` represents a single tensor index with fixed dimension `dim`. Copies of an Index compare equal unless their
+An `Index` represents a single tensor index with fixed extent or dimension `dim`. Copies of an Index compare equal unless their
 `tags` are different.
 
 An Index carries a `TagSet`, a set of tags which are small strings that specify properties of the `Index` to help
@@ -146,14 +146,30 @@ trivial_index(i::Index) = Index(trivial_space(i))
 
 # TODO: decide if these are good definitions, using
 # them for generic code in ContractionSequenceOptimization
-Base.Int(i::Index) = dim(i)
-length(i::Index) = 1
+"""
+    Int(::Index)
 
+returns the extent of an index
+"""
+Base.Int(i::Index) = dim(i)
+
+"""
+    Tuple(::Index)
+
+Packages and index `i` into a Tuple type
+"""
 # Collect into a tuple
 Base.Tuple(i::Index) = (i,)
 
 # Collect into a 0-dimensional Vector
 Base.collect(i::Index) = fill(i, ())
+
+"""
+    length(::Index)
+
+The number of indices stored in an ITensor Index (1)
+"""
+length(i::Index) = 1
 
 """
     id(i::Index)

@@ -23,6 +23,10 @@ trivial_index(::Index)
 ## Properties
 
 ```@docs
+int(::Index)
+Tuple(::Index)
+collect(::Index)
+length(::Index)
 id(::Index)
 hasid(::Index, ::ITensors.IDType)
 tags(::Index)
