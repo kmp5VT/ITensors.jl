@@ -127,6 +127,12 @@ function sim(i::Index; tags=copy(tags(i)), plev=plev(i), dir=dir(i))
   return Index(rand(index_id_rng(), IDType), copy(space(i)), dir, tags, plev)
 end
 
+"""
+    trivial_index(i::Index)
+
+Produces and returns `Index` which occupies the trivial space of the
+provided Index `i`
+"""
 trivial_space(i::Index) = 1
 trivial_index(i::Index) = Index(trivial_space(i))
 

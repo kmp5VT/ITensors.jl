@@ -15,6 +15,9 @@ Index(::Int, ::Union{AbstractString, TagSet})
 Index(::Pair{QN, Int}...)
 Index(::Vector{Pair{QN, Int}})
 Index(::Vector{Pair{QN, Int}}, ::Union{AbstractString, TagSet})
+copy(::Index)
+sim(::Index)
+trivial_index(::Index)
 ```
 
 ## Properties
@@ -49,7 +52,6 @@ replacetags(::Index, ::Any, ::Any)
 ## Methods
 
 ```@docs
-sim(::Index)
 dag(::Index)
 removeqns(::Index)
 ```
@@ -60,4 +62,3 @@ removeqns(::Index)
 eachval(::Index)
 eachindval(::Index)
 ```
-
