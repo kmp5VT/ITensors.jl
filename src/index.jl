@@ -158,10 +158,13 @@ Base.Int(i::Index) = dim(i)
 
 Packages and index `i` into a Tuple type
 """
-# Collect into a tuple
 Base.Tuple(i::Index) = (i,)
 
-# Collect into a 0-dimensional Vector
+"""
+    collect(::Index)
+
+Packages an index `i` into a vector type.
+"""
 Base.collect(i::Index) = fill(i, ())
 
 """
