@@ -349,10 +349,10 @@ tags are compared.
 """
     dir(i::Index)
 
-  Return the direction of an `Index`
-  (`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
-  """
-  dir(i::Index) = i.dir
+Return the direction of an `Index`
+(`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
+"""
+dir(i::Index) = i.dir
 
   # Used for generic code in NDTensors
   NDTensors.dir(i::Index) = dir(i)
