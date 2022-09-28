@@ -346,25 +346,25 @@ tags are compared.
 (i1::Index == i2::Index) =
   (id(i1) == id(i2)) && (plev(i1) == plev(i2)) && (tags(i1) == tags(i2))
 
-  """
-      dir(i::Index)
+"""
+    dir(i::Index)
 
-  Return the direction of an `Index`
-  (`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
-  """
-  dir(i::Index) = i.dir
+Return the direction of an `Index`
+(`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
+"""
+dir(i::Index) = i.dir
 
-  # Used for generic code in NDTensors
-  NDTensors.dir(i::Index) = dir(i)
+# Used for generic code in NDTensors
+NDTensors.dir(i::Index) = dir(i)
 
   hasqns(::Integer) = false
 
-  """
-      hasqns(::Index)
+"""
+    hasqns(::Index)
 
-  Checks of the Index has QNs or not.
-  """
-  hasqns(i::Index) = hasqns(space(i))
+Checks of the Index has QNs or not.
+"""
+hasqns(i::Index) = hasqns(space(i))
 
 #######################
 # End Index properties
@@ -658,7 +658,6 @@ eachindval(i::Index) = (i => n for n in eachval(i))
 #######################
 # End Index Iterators
 #
-
 
 #######################
 # IndexVal functions
