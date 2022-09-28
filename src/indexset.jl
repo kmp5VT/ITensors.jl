@@ -1,19 +1,17 @@
-# Represents a static order of an ITensor
-@eval struct Order{N}
-  (OrderT::Type{<:Order})() = $(Expr(:new, :OrderT))
-end
-
-@doc """
-   Order{N}
-A value type representing the order of an ITensor.
-""" Order
-
 """
-   Order(N) = Order{N}()
-Create an instance of the value type Order representing
-the order of an ITensor.
+    IndexSet
+
+Collections of `Index` are used throughout ITensors.jl to represent the
+dimensions of tensors. In general, collections that are recognized and returned
+by ITensors.jl functions are either `Vector` of `Index` or `Tuple` of `Index`,
+depending on the context. For example internally an `ITensor` has a static
+number of indices so stores a `Tuple` of `Index`, while set operations like
+`commoninds((i, j, k), (j, k, l))` will return a `Vector` `[j, k]` since the
+operation is inherently dynamic, i.e. the number of indices in the intersection
+can't in general be known before running the code. `Vector` of `Index` and
+`Tuple` of `Index` can usually be used interchangeably, but one or the other may
+be faster depending on the operation being performed.
 """
-Order(N) = Order{N}()
 
 # Helpful if we want code to work generically
 # for other Index-like types (such as IndexRange)
@@ -23,6 +21,36 @@ const IndexTuple{IndexT<:Index} = Tuple{Vararg{IndexT}}
 # Definition to help with generic code
 const Indices{IndexT<:Index} = Union{Vector{IndexT},Tuple{Vararg{IndexT}}}
 
+####################
+# Order
+#
+
+# Represents a static order of an ITensor
+@eval struct Order{N}
+  (OrderT::Type{<:Order})() = $(Expr(:new, :OrderT))
+end
+
+@doc """
+   Order{N}
+
+A value type representing the order of an ITensor.
+""" Order
+
+"""
+   Order(N) = Order{N}()
+
+Create an instance of the value type Order representing
+the order of an ITensor.
+"""
+Order(N) = Order{N}()
+
+####################
+# End Order
+#
+
+################
+# Auxillary functions
+#
 function _narrow_eltype(v::Vector{T}; default_empty_eltype=T) where {T}
   if isempty(v)
     return default_empty_eltype[]
@@ -36,17 +64,109 @@ function narrow_eltype(v::Vector{T}; default_empty_eltype=T) where {T}
   return _narrow_eltype(v; default_empty_eltype)
 end
 
-_indices() = ()
-_indices(x::Index) = (x,)
+## # This is to help with some generic programming in the Tensor
+## # code (it helps to construct an IndexSet(::NTuple{N,Index}) where the
+## # only known thing for dispatch is a concrete type such
+## # as IndexSet{4})
+##
+## #NDTensors.similartype(::Type{<:IndexSet},
+## #                      ::Val{N}) where {N} = IndexSet
+##
+## #NDTensors.similartype(::Type{<:IndexSet},
+## #                      ::Type{Val{N}}) where {N} = IndexSet
 
-# Tuples
-_indices(x1::Tuple, x2::Tuple) = (x1..., x2...)
-_indices(x1::Index, x2::Tuple) = (x1, x2...)
-_indices(x1::Tuple, x2::Index) = (x1..., x2)
-_indices(x1::Index, x2::Index) = (x1, x2)
+"""
+    sim(is::Indices)
 
-# Vectors
-_indices(x1::Vector, x2::Vector) = narrow_eltype(vcat(x1, x2); default_empty_eltype=Index)
+Make a new Indices with similar indices.
+
+You can also use the broadcast version `sim.(is)`.
+"""
+sim(is::Indices) = map(i -> sim(i), is)
+
+function trivial_index(is::Indices)
+  if isempty(is)
+    return Index(1)
+  end
+  return trivial_index(first(is))
+end
+
+#
+# Helper functions for contracting ITensors
+#
+
+function compute_contraction_labels(Ais::Tuple, Bis::Tuple)
+  have_qns = hasqns(Ais) && hasqns(Bis)
+  NA = length(Ais)
+  NB = length(Bis)
+  Alabels = MVector{NA,Int}(ntuple(_ -> 0, Val(NA)))
+  Blabels = MVector{NB,Int}(ntuple(_ -> 0, Val(NB)))
+
+  ncont = 0
+  for i in 1:NA, j in 1:NB
+    Ais_i = @inbounds Ais[i]
+    Bis_j = @inbounds Bis[j]
+    if Ais_i == Bis_j
+      if have_qns && (dir(Ais_i) ≠ -dir(Bis_j))
+        error(
+          "Attempting to contract IndexSet:\n\n$(Ais)\n\nwith IndexSet:\n\n$(Bis)\n\nQN indices must have opposite direction to contract, but indices:\n\n$(Ais_i)\n\nand:\n\n$(Bis_j)\n\ndo not have opposite directions.",
+        )
+      end
+      Alabels[i] = Blabels[j] = -(1 + ncont)
+      ncont += 1
+    end
+  end
+
+  u = ncont
+  for i in 1:NA
+    if (Alabels[i] == 0)
+      Alabels[i] = (u += 1)
+    end
+  end
+  for j in 1:NB
+    if (Blabels[j] == 0)
+      Blabels[j] = (u += 1)
+    end
+  end
+
+  return (Tuple(Alabels), Tuple(Blabels))
+end
+
+function compute_contraction_labels(Cis::Tuple, Ais::Tuple, Bis::Tuple)
+  NA = length(Ais)
+  NB = length(Bis)
+  NC = length(Cis)
+  Alabels, Blabels = compute_contraction_labels(Ais, Bis)
+  Clabels = MVector{NC,Int}(ntuple(_ -> 0, Val(NC)))
+  for i in 1:NC
+    locA = findfirst(==(Cis[i]), Ais)
+    if !isnothing(locA)
+      if Alabels[locA] < 0
+        error(
+          "The noncommon indices of $Ais and $Bis must be the same as the indices $Cis."
+        )
+      end
+      Clabels[i] = Alabels[locA]
+    else
+      locB = findfirst(==(Cis[i]), Bis)
+      if isnothing(locB) || Blabels[locB] < 0
+        error(
+          "The noncommon indices of $Ais and $Bis must be the same as the indices $Cis."
+        )
+      end
+      Clabels[i] = Blabels[locB]
+    end
+  end
+  return (Tuple(Clabels), Alabels, Blabels)
+end
+
+################
+# End Auxillary functions
+#
+
+####################
+# IndexSet Constructors
+#
 
 # Mix vectors and tuples/elements
 _indices(x1::Vector, x2) = _indices(x1, [x2])
@@ -69,6 +189,26 @@ IndexSet(f::Function, ::Order{N}) where {N} = IndexSet(f, N)
 
 Tuple(is::IndexSet) = _Tuple(is)
 NTuple{N}(is::IndexSet) where {N} = _NTuple(Val(N), is)
+
+####################
+# End IndexSet Constructors
+#
+
+####################
+# IndexSet properties
+#
+
+_indices() = ()
+_indices(x::Index) = (x,)
+
+# Tuples
+_indices(x1::Tuple, x2::Tuple) = (x1..., x2...)
+_indices(x1::Index, x2::Tuple) = (x1, x2...)
+_indices(x1::Tuple, x2::Index) = (x1..., x2)
+_indices(x1::Index, x2::Index) = (x1, x2)
+
+# Vectors
+_indices(x1::Vector, x2::Vector) = narrow_eltype(vcat(x1, x2); default_empty_eltype=Index)
 
 """
     not(inds::Union{IndexSet, Tuple{Vararg{<:Index}}})
@@ -107,14 +247,6 @@ Get the dimension of the Index n of the Indices.
 """
 NDTensors.dim(is::IndexSet, pos::Int) = dim(is[pos])
 
-"""
-    dag(is::Indices)
-
-Return a new Indices with the indices daggered (flip
-all of the arrow directions).
-"""
-dag(is::Indices) = map(i -> dag(i), is)
-
 # TODO: move to NDTensors
 NDTensors.dim(is::Tuple, pos::Integer) = dim(is[pos])
 
@@ -126,33 +258,6 @@ function NDTensors.similartype(
   ::Type{<:Tuple{Vararg{IndexT}}}, ::Type{Val{N}}
 ) where {IndexT,N}
   return NTuple{N,IndexT}
-end
-
-## # This is to help with some generic programming in the Tensor
-## # code (it helps to construct an IndexSet(::NTuple{N,Index}) where the 
-## # only known thing for dispatch is a concrete type such
-## # as IndexSet{4})
-## 
-## #NDTensors.similartype(::Type{<:IndexSet},
-## #                      ::Val{N}) where {N} = IndexSet
-## 
-## #NDTensors.similartype(::Type{<:IndexSet},
-## #                      ::Type{Val{N}}) where {N} = IndexSet
-
-"""
-    sim(is::Indices)
-
-Make a new Indices with similar indices.
-
-You can also use the broadcast version `sim.(is)`.
-"""
-sim(is::Indices) = map(i -> sim(i), is)
-
-function trivial_index(is::Indices)
-  if isempty(is)
-    return Index(1)
-  end
-  return trivial_index(first(is))
 end
 
 """
@@ -193,10 +298,6 @@ end
 Return a TagSet of the tags that are common to all of the indices.
 """
 commontags(is::Indices) = commontags(is...)
-
-# 
-# Set operations
-#
 
 """
     ==(is1::Indices, is2::Indices)
@@ -252,7 +353,7 @@ fmatch(::Nothing) = ftrue
                       plev = nothing,
                       id = nothing) -> Function
 
-An internal function that returns a function 
+An internal function that returns a function
 that accepts an Index that checks if the
 Index matches the provided conditions.
 """
@@ -295,7 +396,7 @@ getfirst(is::Indices, args...; kwargs...) = getfirst(fmatch(args...; kwargs...),
 
 Base.findall(is::Indices, args...; kwargs...) = findall(fmatch(args...; kwargs...), is)
 
-# In general this isn't defined for Tuple but is 
+# In general this isn't defined for Tuple but is
 # defined for Vector
 """
     indexin(ais::Indices, bis::Indices)
@@ -313,9 +414,94 @@ end
 
 findfirst(is::Indices, args...; kwargs...) = findfirst(fmatch(args...; kwargs...), is)
 
+# Check that the QNs are all the same
+hassameflux(i1::Index, i2::Index) = (dim(i1) == dim(i2))
+
+"""
+    dir(is::Indices, i::Index)
+
+Return the direction of the Index `i` in the Indices `is`.
+"""
+function dir(is1::Indices, i::Index)
+  return dir(getfirst(is1, i))
+end
+
+"""
+    dirs(is::Indices, inds)
+
+Return a tuple of the directions of the indices `inds` in
+the Indices `is`, in the order they are found in `inds`.
+"""
+function dirs(is1::Indices, inds)
+  return map(i -> dir(is1, inds[i]), 1:length(inds))
+end
+
+"""
+    dirs(is::Indices)
+
+Return a tuple of the directions of the indices `is`.
+"""
+dirs(is::Indices) = dir.(is)
+
+hasqns(is::Indices) = any(hasqns, is)
+
+"""
+    getperm(col1, col2)
+
+Get the permutation that takes collection 2 to collection 1,
+such that `col2[p] .== col1`.
+"""
+function getperm(s1, s2)
+  N = length(s1)
+  r = Vector{Int}(undef, N)
+  return map!(i -> findfirst(==(s1[i]), s2), r, 1:length(s1))
+end
+
+# TODO: define directly for Vector
+"""
+    nblocks(::Indices, i::Int)
+
+The number of blocks in the specified dimension.
+"""
+function NDTensors.nblocks(inds::IndexSet, i::Int)
+  return nblocks(Tuple(inds), i)
+end
+
+# TODO: don't convert to Tuple
+function NDTensors.nblocks(inds::IndexSet, is)
+  return nblocks(Tuple(inds), is)
+end
+
+"""
+    nblocks(::Indices)
+
+A tuple of the number of blocks in each
+dimension.
+"""
+NDTensors.nblocks(inds::Indices) = nblocks.(inds)
+
+# TODO: is this needed?
+function NDTensors.nblocks(inds::NTuple{N,<:Index}) where {N}
+  return ntuple(i -> nblocks(inds, i), Val(N))
+end
+
+ndiagblocks(inds) = minimum(nblocks(inds))
+
+####################
+# End IndexSet properties
 #
-# Tagging functions
+
+####################
+# IndexSet Priming and tagging
 #
+
+"""
+    dag(is::Indices)
+
+Return a new Indices with the indices daggered (flip
+all of the arrow directions).
+"""
+dag(is::Indices) = map(i -> dag(i), is)
 
 function prime(f::Function, is::Indices, args...)
   return map(i -> f(i) ? prime(i, args...) : i, is)
@@ -419,46 +605,6 @@ function settags(is::Indices, tags, args...; kwargs...)
   return settags(fmatch(args...; kwargs...), is, tags)
 end
 
-"""
-    CartesianIndices(is::Indices)
-
-Create a CartesianIndices iterator for an Indices.
-"""
-CartesianIndices(is::Indices) = CartesianIndices(_Tuple(dims(is)))
-
-"""
-    eachval(is::Index...)
-    eachval(is::Tuple{Vararg{Index}})
-
-Create an iterator whose values correspond to a
-Cartesian indexing over the dimensions
-of the provided `Index` objects.
-"""
-eachval(is::Index...) = eachval(is)
-eachval(is::Tuple{Vararg{Index}}) = CartesianIndices(dims(is))
-
-"""
-    eachindval(is::Index...)
-    eachindval(is::Tuple{Vararg{Index}})
-
-Create an iterator whose values are Index=>value pairs
-corresponding to a Cartesian indexing over the dimensions
-of the provided `Index` objects.
-
-# Example
-
-```julia
-i = Index(3; tags="i")
-j = Index(2; tags="j")
-T = randomITensor(j, i)
-for iv in eachindval(i, j)
-  @show T[iv...]
-end
-```
-"""
-eachindval(is::Index...) = eachindval(is)
-eachindval(is::Tuple{Vararg{Index}}) = (is .=> Tuple(ns) for ns in eachval(is))
-
 function removetags(f::Function, is::Indices, args...)
   return map(i -> f(i) ? removetags(i, args...) : i, is)
 end
@@ -551,8 +697,62 @@ function replaceinds(is::Indices, rep_inds::Pair)
   return replaceinds(is, Tuple(first(rep_inds)) .=> Tuple(last(rep_inds)))
 end
 
-# Check that the QNs are all the same
-hassameflux(i1::Index, i2::Index) = (dim(i1) == dim(i2))
+####################
+# End IndexSet Priming and tagging
+#
+
+#####################
+# IndexSet Iterators
+#
+
+"""
+    CartesianIndices(is::Indices)
+
+Create a CartesianIndices iterator for an Indices.
+"""
+CartesianIndices(is::Indices) = CartesianIndices(_Tuple(dims(is)))
+
+"""
+    eachval(is::Index...)
+    eachval(is::Tuple{Vararg{Index}})
+
+Create an iterator whose values correspond to a
+Cartesian indexing over the dimensions
+of the provided `Index` objects.
+"""
+eachval(is::Index...) = eachval(is)
+eachval(is::Tuple{Vararg{Index}}) = CartesianIndices(dims(is))
+
+"""
+    eachindval(is::Index...)
+    eachindval(is::Tuple{Vararg{Index}})
+
+Create an iterator whose values are Index=>value pairs
+corresponding to a Cartesian indexing over the dimensions
+of the provided `Index` objects.
+
+# Example
+
+```julia
+i = Index(3; tags="i")
+j = Index(2; tags="j")
+T = randomITensor(j, i)
+for iv in eachindval(i, j)
+  @show T[iv...]
+end
+```
+"""
+eachindval(is::Index...) = eachindval(is)
+eachindval(is::Tuple{Vararg{Index}}) = (is .=> Tuple(ns) for ns in eachval(is))
+
+#####################
+# End IndexSet Iterators
+#
+
+
+#####################
+# IndexSet Operations
+#
 
 function replaceinds(is::Indices, inds1, inds2)
   is1 = inds1
@@ -617,117 +817,6 @@ function permute(is1::Indices, is2::Indices)
 end
 
 #
-# Helper functions for contracting ITensors
-#
-
-function compute_contraction_labels(Ais::Tuple, Bis::Tuple)
-  have_qns = hasqns(Ais) && hasqns(Bis)
-  NA = length(Ais)
-  NB = length(Bis)
-  Alabels = MVector{NA,Int}(ntuple(_ -> 0, Val(NA)))
-  Blabels = MVector{NB,Int}(ntuple(_ -> 0, Val(NB)))
-
-  ncont = 0
-  for i in 1:NA, j in 1:NB
-    Ais_i = @inbounds Ais[i]
-    Bis_j = @inbounds Bis[j]
-    if Ais_i == Bis_j
-      if have_qns && (dir(Ais_i) ≠ -dir(Bis_j))
-        error(
-          "Attempting to contract IndexSet:\n\n$(Ais)\n\nwith IndexSet:\n\n$(Bis)\n\nQN indices must have opposite direction to contract, but indices:\n\n$(Ais_i)\n\nand:\n\n$(Bis_j)\n\ndo not have opposite directions.",
-        )
-      end
-      Alabels[i] = Blabels[j] = -(1 + ncont)
-      ncont += 1
-    end
-  end
-
-  u = ncont
-  for i in 1:NA
-    if (Alabels[i] == 0)
-      Alabels[i] = (u += 1)
-    end
-  end
-  for j in 1:NB
-    if (Blabels[j] == 0)
-      Blabels[j] = (u += 1)
-    end
-  end
-
-  return (Tuple(Alabels), Tuple(Blabels))
-end
-
-function compute_contraction_labels(Cis::Tuple, Ais::Tuple, Bis::Tuple)
-  NA = length(Ais)
-  NB = length(Bis)
-  NC = length(Cis)
-  Alabels, Blabels = compute_contraction_labels(Ais, Bis)
-  Clabels = MVector{NC,Int}(ntuple(_ -> 0, Val(NC)))
-  for i in 1:NC
-    locA = findfirst(==(Cis[i]), Ais)
-    if !isnothing(locA)
-      if Alabels[locA] < 0
-        error(
-          "The noncommon indices of $Ais and $Bis must be the same as the indices $Cis."
-        )
-      end
-      Clabels[i] = Alabels[locA]
-    else
-      locB = findfirst(==(Cis[i]), Bis)
-      if isnothing(locB) || Blabels[locB] < 0
-        error(
-          "The noncommon indices of $Ais and $Bis must be the same as the indices $Cis."
-        )
-      end
-      Clabels[i] = Blabels[locB]
-    end
-  end
-  return (Tuple(Clabels), Alabels, Blabels)
-end
-
-#
-# TupleTools
-#
-
-"""
-    pop(is::Indices)
-
-Return a new Indices with the last Index removed.
-"""
-pop(is::Indices) = (NDTensors.pop(Tuple(is)))
-
-# Overload the unexported NDTensors version
-NDTensors.pop(is::Indices) = pop(is)
-
-# TODO: don't convert to Tuple
-"""
-    popfirst(is::Indices)
-
-Return a new Indices with the first Index removed.
-"""
-popfirst(is::IndexSet) = (NDTensors.popfirst(Tuple(is)))
-
-# Overload the unexported NDTensors version
-NDTensors.popfirst(is::IndexSet) = popfirst(is)
-
-"""
-    push(is::Indices, i::Index)
-
-Make a new Indices with the Index i inserted
-at the end.
-"""
-push(is::IndexSet, i::Index) = NDTensors.push(is, i)
-
-# Overload the unexported NDTensors version
-NDTensors.push(is::IndexSet, i::Index) = push(is, i)
-
-# TODO: deprecate in favor of `filterinds` (abuse of Base notation)
-filter(is::Indices, args...; kwargs...) = filter(fmatch(args...; kwargs...), is)
-
-# For ambiguity with Base.filter
-filter(is::Indices, args::String; kwargs...) = filter(fmatch(args; kwargs...), is)
-
-#
 # QN functions
 #
 
@@ -739,76 +828,6 @@ Return a new Indices with indices `setdir(is[i], dirs[i])`.
 function setdirs(is::Indices, dirs)
   return map(i -> setdir(is[i], dirs[i]), 1:length(is))
 end
-
-"""
-    dir(is::Indices, i::Index)
-
-Return the direction of the Index `i` in the Indices `is`.
-"""
-function dir(is1::Indices, i::Index)
-  return dir(getfirst(is1, i))
-end
-
-"""
-    dirs(is::Indices, inds)
-
-Return a tuple of the directions of the indices `inds` in
-the Indices `is`, in the order they are found in `inds`.
-"""
-function dirs(is1::Indices, inds)
-  return map(i -> dir(is1, inds[i]), 1:length(inds))
-end
-
-"""
-    dirs(is::Indices)
-
-Return a tuple of the directions of the indices `is`.
-"""
-dirs(is::Indices) = dir.(is)
-
-hasqns(is::Indices) = any(hasqns, is)
-
-"""
-    getperm(col1, col2)
-
-Get the permutation that takes collection 2 to collection 1,
-such that `col2[p] .== col1`.
-"""
-function getperm(s1, s2)
-  N = length(s1)
-  r = Vector{Int}(undef, N)
-  return map!(i -> findfirst(==(s1[i]), s2), r, 1:length(s1))
-end
-
-# TODO: define directly for Vector
-"""
-    nblocks(::Indices, i::Int)
-
-The number of blocks in the specified dimension.
-"""
-function NDTensors.nblocks(inds::IndexSet, i::Int)
-  return nblocks(Tuple(inds), i)
-end
-
-# TODO: don't convert to Tuple
-function NDTensors.nblocks(inds::IndexSet, is)
-  return nblocks(Tuple(inds), is)
-end
-
-"""
-    nblocks(::Indices)
-
-A tuple of the number of blocks in each
-dimension.
-"""
-NDTensors.nblocks(inds::Indices) = nblocks.(inds)
-
-# TODO: is this needed?
-function NDTensors.nblocks(inds::NTuple{N,<:Index}) where {N}
-  return ntuple(i -> nblocks(inds, i), Val(N))
-end
-
-ndiagblocks(inds) = minimum(nblocks(inds))
 
 """
     flux(inds::Indices, block::Tuple{Vararg{Int}})
@@ -867,11 +886,61 @@ ITensors.block(is, 1, 2) == (1,1)
 """
 block(inds::Indices, vals::Integer...) = blockindex(inds, vals...)[2]
 
-#show(io::IO, is::IndexSet) = show(io, MIME"text/plain"(), is)
+#####################
+# End IndexSet Operations
+#
 
+###################
+# IndexSet TupleTools
 #
-# Read and write
+
+"""
+    pop(is::Indices)
+
+Return a new Indices with the last Index removed.
+"""
+pop(is::Indices) = (NDTensors.pop(Tuple(is)))
+
+# Overload the unexported NDTensors version
+NDTensors.pop(is::Indices) = pop(is)
+
+# TODO: don't convert to Tuple
+"""
+    popfirst(is::Indices)
+
+Return a new Indices with the first Index removed.
+"""
+popfirst(is::IndexSet) = (NDTensors.popfirst(Tuple(is)))
+
+# Overload the unexported NDTensors version
+NDTensors.popfirst(is::IndexSet) = popfirst(is)
+
+"""
+    push(is::Indices, i::Index)
+
+Make a new Indices with the Index i inserted
+at the end.
+"""
+push(is::IndexSet, i::Index) = NDTensors.push(is, i)
+
+# Overload the unexported NDTensors version
+NDTensors.push(is::IndexSet, i::Index) = push(is, i)
+
+# TODO: deprecate in favor of `filterinds` (abuse of Base notation)
+filter(is::Indices, args...; kwargs...) = filter(fmatch(args...; kwargs...), is)
+
+# For ambiguity with Base.filter
+filter(is::Indices, args::String; kwargs...) = filter(fmatch(args; kwargs...), is)
+
+###################
+# IndexSet TupleTools
 #
+
+##################
+# IndexSet IO
+#
+
+#show(io::IO, is::IndexSet) = show(io, MIME"text/plain"(), is)
 
 function readcpp(io::IO, ::Type{<:Indices}; kwargs...)
   format = get(kwargs, :format, "v3")
