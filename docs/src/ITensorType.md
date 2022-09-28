@@ -72,12 +72,17 @@ mindim(::ITensor)
 dim(::ITensor)
 dim(::ITensor, ::Int)
 dims(::ITensor)
-size(::ITensor)
 dir(::ITensor, ::Index)
 ishermitian(::ITensor; kwargs...)
-isemptystorage(::ITensor)
 ```
 
+## Iterators
+
+```@docs
+CartesianIndices(::ITensor)
+eachindval(::ITensor)
+iterate(::ITensor, args...)
+```
 ## Getting and setting elements
 
 ```@docs
