@@ -359,8 +359,8 @@ NDTensors.dir(i::Index) = dir(i)
 
   hasqns(::Integer) = false
 
-  """
-      hasqns(::Index)
+"""
+    hasqns(::Index)
 
   Checks of the Index has QNs or not.
   """
