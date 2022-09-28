@@ -127,13 +127,14 @@ function sim(i::Index; tags=copy(tags(i)), plev=plev(i), dir=dir(i))
   return Index(rand(index_id_rng(), IDType), copy(space(i)), dir, tags, plev)
 end
 
+trivial_space(i::Index) = 1
+
 """
     trivial_index(i::Index)
 
 Produces and returns `Index` which occupies the trivial space of the
 provided Index `i`
 """
-trivial_space(i::Index) = 1
 trivial_index(i::Index) = Index(trivial_space(i))
 
 #######################
@@ -147,21 +148,21 @@ trivial_index(i::Index) = Index(trivial_space(i))
 # TODO: decide if these are good definitions, using
 # them for generic code in ContractionSequenceOptimization
 """
-    Int(::Index)
+    Base.Int(::Index)
 
 returns the extent of an index
 """
 Base.Int(i::Index) = dim(i)
 
 """
-    Tuple(::Index)
+    Base.Tuple(::Index)
 
 Packages and index `i` into a Tuple type
 """
 Base.Tuple(i::Index) = (i,)
 
 """
-    collect(::Index)
+    Base.collect(::Index)
 
 Packages an index `i` into a vector type.
 """
@@ -175,6 +176,39 @@ The number of indices stored in an ITensor Index (1)
 length(i::Index) = 1
 
 """
+  space(i::Index)
+
+returns the tensor space of the index `i`
+"""
+space(i::Index) = i.space
+
+"""
+    SymmetryStyle
+
+AbstractClass
+Trait to determine if an Index, Index collection, Tensor, or ITensor
+has symmetries
+"""
+abstract type SymmetryStyle end
+
+"""
+    NonQN
+
+SymmetryStyle type: for generic non quantum number indices
+"""
+struct NonQN <: SymmetryStyle end
+
+"""
+    symmetrystyle(i::Index)
+
+Function which resolves the symmetry style of an index `i`. For
+generic Index type default return `NonQN` type.
+"""
+symmetrystyle(i::Index) = NonQN()
+# Fallback definition for scalar ITensors (without any indices)
+symmetrystyle() = NonQN()
+
+"""
     id(i::Index)
 
 Obtain the id of an Index, which is a unique 64 digit integer.
@@ -182,35 +216,29 @@ Obtain the id of an Index, which is a unique 64 digit integer.
 id(i::Index) = i.id
 
 """
-    dim(i::Index)
+    hasid(i::Index, id::ITensors.IDType)
 
-Obtain the dimension of an Index.
+Check if an `Index` `i` has the provided id.
 
-For a QN Index, this is the sum of the block dimensions.
+# Examples
+
+```jldoctest; filter=r"id=[0-9]{1,3}"
+julia> i = Index(2)
+(dim=2|id=321)
+
+julia> hasid(i, id(i))
+true
+
+julia> j = Index(2)
+(dim=2|id=17)
+
+julia> hasid(i, id(j))
+false
+```
 """
-NDTensors.dim(i::Index) = i.space
+hasid(ind::Index, i::IDType) = id(ind) == i
 
-space(i::Index) = i.space
-
-"""
-    dir(i::Index)
-
-Return the direction of an `Index` (`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
-"""
-dir(i::Index) = i.dir
-
-# Used for generic code in NDTensors
-NDTensors.dir(i::Index) = dir(i)
-
-# Trait to determine if an Index, Index collection, Tensor, or ITensor
-# has symmetries
-abstract type SymmetryStyle end
-
-struct NonQN <: SymmetryStyle end
-
-symmetrystyle(i::Index) = NonQN()
-# Fallback definition for scalar ITensors (without any indices)
-symmetrystyle() = NonQN()
+hasid(i::IDType) = x -> hasid(x, i)
 
 """
     tags(i::Index)
@@ -219,16 +247,16 @@ Obtain the TagSet of an Index.
 """
 tags(i::Index) = i.tags
 
+"""
+    commontags(is::Index...)
+
+returns the common SetTags between a given number of indices
+if the number of provided indices is 1, return the tag of the index
+if the number of provided indices is 0, return `""`
+"""
 commontags(is::Index...) = commontags(tags.(is)...)
 commontags(is::Index) = tags(is)
 commontags() = ts""
-
-"""
-    plev(i::Index)
-
-Obtain the prime level of an Index.
-"""
-plev(i::Index) = i.plev
 
 """
     hastags(i::Index, ts::Union{AbstractString,TagSet})
@@ -253,6 +281,13 @@ false
 hastags(i::Index, ts::Union{AbstractString,TagSet}) = hastags(tags(i), ts)
 
 hastags(ts::Union{AbstractString,TagSet}) = x -> hastags(x, ts)
+
+"""
+    plev(i::Index)
+
+Obtain the prime level of an Index.
+"""
+plev(i::Index) = i.plev
 
 """
     hasplev(i::Index, plev::Int)
@@ -293,42 +328,43 @@ Useful for passing to functions like `map`.
 hasind(s::Index) = x -> hasind(x, s)
 
 """
-    hasid(i::Index, id::ITensors.IDType)
+    dim(i::Index)
 
-Check if an `Index` `i` has the provided id.
+Obtain the dimension of an Index.
 
-# Examples
-
-```jldoctest; filter=r"id=[0-9]{1,3}"
-julia> i = Index(2)
-(dim=2|id=321)
-
-julia> hasid(i, id(i))
-true
-
-julia> j = Index(2)
-(dim=2|id=17)
-
-julia> hasid(i, id(j))
-false
-```
+For a QN Index, this is the sum of the block dimensions.
 """
-hasid(ind::Index, i::IDType) = id(ind) == i
-
-hasid(i::IDType) = x -> hasid(x, i)
-
-#
-# QN related functions
-#
-
-hasqns(::Integer) = false
+NDTensors.dim(i::Index) = i.space
 
 """
-    hasqns(::Index)
+    ==(i1::Index, i1::Index)
 
-Checks of the Index has QNs or not.
+Compare indices for equality. First the id's are compared,
+then the prime levels are compared, and finally the
+tags are compared.
 """
-hasqns(i::Index) = hasqns(space(i))
+(i1::Index == i2::Index) =
+  (id(i1) == id(i2)) && (plev(i1) == plev(i2)) && (tags(i1) == tags(i2))
+
+  """
+      dir(i::Index)
+
+  Return the direction of an `Index`
+  (`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
+  """
+  dir(i::Index) = i.dir
+
+  # Used for generic code in NDTensors
+  NDTensors.dir(i::Index) = dir(i)
+
+  hasqns(::Integer) = false
+
+  """
+      hasqns(::Index)
+
+  Checks of the Index has QNs or not.
+  """
+  hasqns(i::Index) = hasqns(space(i))
 
 #######################
 # End Index properties
@@ -339,7 +375,7 @@ hasqns(i::Index) = hasqns(space(i))
 #
 
 """
-    setdir(i::Index, dir::Arrow)
+    setdir(i::Index, dir::Int)
 
 Create a copy of Index i with the specified direction.
 """
@@ -361,9 +397,12 @@ Return Not{IDType}(n).
 """
 not(id::IDType) = Not(id)
 
-# Information essential to the
-# identity of an Index.
-# Currently only used for hashing an Index.
+"""
+    IndexID
+
+Information essential to the identity of an Index.
+Currently only used for hashing an Index.
+"""
 struct IndexID
   id::IDType
   tags::TagSet
@@ -371,16 +410,6 @@ struct IndexID
 end
 IndexID(i::Index) = IndexID(id(i), tags(i), plev(i))
 hash(i::Index, h::UInt) = hash(IndexID(i), h)
-
-"""
-    ==(i1::Index, i1::Index)
-
-Compare indices for equality. First the id's are compared,
-then the prime levels are compared, and finally the
-tags are compared.
-"""
-(i1::Index == i2::Index) =
-  (id(i1) == id(i2)) && (plev(i1) == plev(i2)) && (tags(i1) == tags(i2))
 
 """
     dag(i::Index)
@@ -391,6 +420,106 @@ dag(i::Index) = Index(id(i), copy(space(i)), -dir(i), tags(i), plev(i))
 
 # For internal use in NDTensors
 NDTensors.dag(i::Index) = dag(i)
+
+#
+# QN related functions
+#
+
+"""
+    removeqns(::Index)
+
+Removes the QNs from the Index, if it has any.
+"""
+removeqns(i::Index) = i
+
+"""
+    removeqn(::Index, qn_name::String)
+
+Remove the specified QN from the Index, if it has any.
+"""
+removeqn(i::Index, qn_name::String) = i
+
+"""
+    mergeblocks(::Index)
+
+Merge the contiguous QN blocks if they have the same
+quantum numbers.
+"""
+mergeblocks(i::Index) = i
+
+"""
+    NDTensors.outer(i::Index; dir=dir(i), tags="", plev::Int=0)
+
+Creates an Index which is the outer product of the Indices `i` and `j`.
+If `j=nullspace` (i.e. it is not provided) then the outer product is simply `i`
+"""
+# This is a trivial definition for use in NDTensors
+# XXX: rename tensorproduct with ⊗ alias
+function NDTensors.outer(i::Index; dir=dir(i), tags="", plev::Int=0)
+  return sim(i; tags=tags, plev=plev, dir=dir)
+end
+
+# This is for use in NDTensors
+# XXX: rename tensorproduct with ⊗ alias
+function NDTensors.outer(i1::Index, i2::Index; tags="")
+  return Index(dim(i1) * dim(i2), tags)
+end
+
+"""
+    directsum(i::Index, j::Index; tags="sum")
+
+Creates an Index which is the sum of the Indices `i` and `j`
+If `j=nullspace` (i.e. it is not provided) then the direct sum is simply `i`
+"""
+# Non-qn Index
+# TODO: add ⊕ alias
+directsum(i::Index, j::Index; tags="sum") = Index(dim(i) + dim(j); tags=tags)
+
+directsum(i::Index; tags="sum") = sim(i; tags=tags)
+#######################
+# End Index operations
+#
+
+#######################
+# Priming and tagging operations
+#
+"""
+    prime(i::Index, plinc::Int = 1)
+
+Return a copy of Index `i` with its
+prime level incremented by the amount `plinc`
+"""
+prime(i::Index, plinc::Int=1) = setprime(i, plev(i) + plinc)
+
+"""
+    adjoint(i::Index)
+
+Prime an Index using the notation `i'`.
+"""
+Base.adjoint(i::Index) = prime(i)
+
+"""
+    ^(i::Index, pl::Int)
+
+Prime an Index using the notation `i^3`.
+"""
+Base.:^(i::Index, pl::Int) = prime(i, pl)
+
+"""
+    setprime(i::Index, plev::Int)
+
+Return a copy of Index `i` with its
+prime level set to `plev`
+"""
+setprime(i::Index, plev::Int) = Index(id(i), copy(space(i)), dir(i), tags(i), plev)
+
+"""
+    noprime(i::Index)
+
+Return a copy of Index `i` with its
+prime level set to zero.
+"""
+noprime(i::Index) = setprime(i, 0)
 
 """
     settags(i::Index, ts)
@@ -421,6 +550,11 @@ true
 """
 settags(i::Index, ts) = Index(id(i), copy(space(i)), dir(i), ts, plev(i))
 
+"""
+    setspace
+
+create a new index that matches `i` where space is set as `s`
+"""
 setspace(i::Index, s) = Index(id(i), s, dir(i), tags(i), plev(i))
 
 """
@@ -469,44 +603,13 @@ replacetags(i::Index, tsold, tsnew) = settags(i, replacetags(tags(i), tsold, tsn
 
 replacetags(i::Index, rep_ts::Pair) = replacetags(i, rep_ts...)
 
-"""
-    prime(i::Index, plinc::Int = 1)
+#######################
+# End Priming and tagging operations
+#
 
-Return a copy of Index `i` with its
-prime level incremented by the amount `plinc`
-"""
-prime(i::Index, plinc::Int=1) = setprime(i, plev(i) + plinc)
-
-"""
-    setprime(i::Index, plev::Int)
-
-Return a copy of Index `i` with its
-prime level set to `plev`
-"""
-setprime(i::Index, plev::Int) = Index(id(i), copy(space(i)), dir(i), tags(i), plev)
-
-"""
-    noprime(i::Index)
-
-Return a copy of Index `i` with its
-prime level set to zero.
-"""
-noprime(i::Index) = setprime(i, 0)
-
-"""
-    adjoint(i::Index)
-
-Prime an Index using the notation `i'`.
-"""
-Base.adjoint(i::Index) = prime(i)
-
-"""
-    ^(i::Index, pl::Int)
-
-Prime an Index using the notation `i^3`.
-"""
-Base.:^(i::Index, pl::Int) = prime(i, pl)
-
+#######################
+# Index Iterators
+#
 """
 Iterating over Index `I` gives the IndexVals `I(1)` through `I(dim(I))`.
 """
@@ -552,51 +655,10 @@ the ordering of the indices. See also
 """
 eachindval(i::Index) = (i => n for n in eachval(i))
 
-# This is a trivial definition for use in NDTensors
-# XXX: rename tensorproduct with ⊗ alias
-function NDTensors.outer(i::Index; dir=dir(i), tags="", plev::Int=0)
-  return sim(i; tags=tags, plev=plev, dir=dir)
-end
-
-# This is for use in NDTensors
-# XXX: rename tensorproduct with ⊗ alias
-function NDTensors.outer(i1::Index, i2::Index; tags="")
-  return Index(dim(i1) * dim(i2), tags)
-end
-
-# Non-qn Index
-# TODO: add ⊕ alias
-directsum(i::Index, j::Index; tags="sum") = Index(dim(i) + dim(j); tags=tags)
-
-#
-# QN related functions
-#
-
-"""
-    removeqns(::Index)
-
-Removes the QNs from the Index, if it has any.
-"""
-removeqns(i::Index) = i
-
-"""
-    removeqn(::Index, qn_name::String)
-
-Remove the specified QN from the Index, if it has any.
-"""
-removeqn(i::Index, qn_name::String) = i
-
-"""
-    mergeblocks(::Index)
-
-Merge the contiguous QN blocks if they have the same
-quantum numbers.
-"""
-mergeblocks(i::Index) = i
-
 #######################
-# End Index operations
+# End Index Iterators
 #
+
 
 #######################
 # IndexVal functions

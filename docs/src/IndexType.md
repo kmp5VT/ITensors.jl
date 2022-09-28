@@ -17,26 +17,29 @@ Index(::Vector{Pair{QN, Int}})
 Index(::Vector{Pair{QN, Int}}, ::Union{AbstractString, TagSet})
 copy(::Index)
 sim(::Index)
-trivial_index(::Index)
 ```
 
 ## Properties
 
 ```@docs
-int(::Index)
-Tuple(::Index)
-collect(::Index)
-length(::Index)
 id(::Index)
 hasid(::Index, ::ITensors.IDType)
 tags(::Index)
 hastags(::Index, ::Union{AbstractString,TagSet})
 plev(::Index)
 hasplev(::Index, ::Int)
+hasind(::Index)
 dim(::Index)
 ==(::Index, ::Index)
 dir(::Index)
 hasqns(::Index)
+```
+
+## Operations
+
+```@docs
+dag(::Index)
+removeqns(::Index)
 ```
 
 ## Priming and tagging methods
@@ -51,13 +54,6 @@ settags(::Index, ::Any)
 addtags(::Index, ::Any)
 removetags(::Index, ::Any)
 replacetags(::Index, ::Any, ::Any)
-```
-
-## Methods
-
-```@docs
-dag(::Index)
-removeqns(::Index)
 ```
 
 ## Iterating
