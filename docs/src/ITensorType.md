@@ -6,7 +6,9 @@
 ITensor
 ```
 
-## Dense Constructors
+## Constructors
+
+### Dense Constructors
 
 ```@docs
 ITensor(::Type{<:Number}, ::ITensors.Indices)
@@ -17,13 +19,13 @@ randomITensor(::Type{<:Number}, ::ITensors.Indices)
 onehot
 ```
 
-## Dense View Constructors
+### Dense View Constructors
 
 ```@docs
 itensor(::Array{<:Number}, ::ITensors.Indices)
 ```
 
-## QN BlockSparse Constructors
+### QN BlockSparse Constructors
 
 ```@docs
 ITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
@@ -31,7 +33,7 @@ ITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Array{<:Number}, ::ITensors.Q
 ITensor(::Type{<:Number}, ::UndefInitializer, ::QN, ::ITensors.Indices)
 ```
 
-## Diagonal constructors
+### Diagonal constructors
 
 ```@docs
 diagITensor(::Type{<:Number}, ::ITensors.Indices)
@@ -40,14 +42,14 @@ diagITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Number, ::ITensors.Indice
 delta(::Type{<:Number}, ::ITensors.Indices)
 ```
 
-## QN Diagonal constructors
+### QN Diagonal constructors
 
 ```@docs
 diagITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
 delta(::Type{<:Number}, ::QN, ::ITensors.Indices)
 ```
 
-## Convert to Array
+### Convert to Array
 
 ```@docs
 Array{ElT, N}(::ITensor, ::ITensors.Indices) where {ElT, N}
@@ -59,6 +61,23 @@ matrix(::ITensor)
 vector(::ITensor)
 ```
 
+## Properties
+
+```@docs
+storage(::ITensor)
+order(::ITensor)
+inds(::ITensor)
+maxdim(::ITensor)
+mindim(::ITensor)
+dim(::ITensor)
+dim(::ITensor, ::Int)
+dims(::ITensor)
+size(::ITensor)
+dir(::ITensor, ::Index)
+ishermitian(::ITensor; kwargs...)
+isemptystorage(::ITensor)
+```
+
 ## Getting and setting elements
 
 ```@docs
@@ -66,17 +85,10 @@ getindex(::ITensor, ::Any...)
 setindex!(::ITensor, ::Number, ::Int...)
 ```
 
-## Properties
-
-```@docs
-inds(::ITensor)
-ind(::ITensor, ::Int)
-dir(::ITensor, ::Index)
-```
-
 ## [Priming and tagging](@id Priming_and_tagging_ITensor)
 
 ```@docs
+ind(::ITensor, ::Int)
 prime(::ITensor, ::Any...)
 setprime(::ITensor, ::Any...)
 noprime(::ITensor, ::Any...)
@@ -121,17 +133,9 @@ exp(::ITensor, ::Any, ::Any)
 nullspace(::ITensor, ::Any...)
 ```
 
-## Decompositions
-```@docs
-svd(::ITensor, ::Any...)
-eigen(::ITensor, ::Any, ::Any)
-factorize(::ITensor, ::Any...)
-```
-
 ## Memory operations
 
 ```@docs
 permute(::ITensor, ::Any)
 dense(::ITensor)
 ```
-

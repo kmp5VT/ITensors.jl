@@ -9,7 +9,7 @@ an ITensor has. Operations like contraction
 and addition of ITensors automatically
 handle any memory permutations.
 
-# Examples
+### Examples
 
 ```julia
 julia> i = Index(2, "i")
@@ -246,7 +246,8 @@ Construct an ITensor with all elements set to `x` and indices `inds`.
   ```
 
   !!! warning
-      In future versions this may not automatically convert integer inputs with `float`, and in that case the particular element type should not be relied on.
+      In future versions this may not automatically convert integer inputs with
+      `float`, and in that case the particular element type should not be relied on.
   """
 ITensor(eltype::Type{<:Number}, x::Number, is::Indices) = _ITensor(eltype, x, is)
 
@@ -274,7 +275,10 @@ ITensor(x::RealOrComplex{Int}, is...) = ITensor(float(x), is...)
     emptyITensor([::Type{ElT} = NDTensors.EmptyNumber, ]inds)
     emptyITensor([::Type{ElT} = NDTensors.EmptyNumber, ]inds::Index...)
 
-Construct an ITensor with storage type `NDTensors.EmptyStorage`, indices `inds`, and element type `ElT`. If the element type is not specified, it defaults to `NDTensors.EmptyNumber`, which represents a number type that can take on any value (for example, the type of the first value it is set to).
+Construct an ITensor with storage type `NDTensors.EmptyStorage`, indices `inds`,
+and element type `ElT`. If the element type is not specified, it defaults to
+`NDTensors.EmptyNumber`, which represents a number type that can take on any
+value (for example, the type of the first value it is set to).
 """
 function emptyITensor(::Type{ElT}, is::Indices) where {ElT<:Number}
   return itensor(EmptyTensor(ElT, is))
@@ -331,7 +335,17 @@ T[i => 1, j => 1] == 3.3
 ```
 
 !!! warning
-    In future versions this may not automatically convert `Int`/`Complex{Int}` inputs to floating point versions with `float` (once tensor operations using `Int`/`Complex{Int}` are natively as fast as floating point operations), and in that case the particular element type should not be relied on. To avoid extra conversions (and therefore allocations) it is best practice to directly construct with `itensor([0. 1; 1 0], i', dag(i))` if you want a floating point element type. The conversion is done as a performance optimization since often tensors are passed to BLAS/LAPACK and need to be converted to floating point types compatible with those libraries, but future projects in Julia may allow for efficient operations with more general element types (for example see https://github.com/JuliaLinearAlgebra/Octavian.jl).
+    In future versions this may not automatically convert `Int`/`Complex{Int}`
+    inputs to floating point versions with `float` (once tensor operations using
+    `Int`/`Complex{Int}` are natively as fast as floating point operations), and
+    in that case the particular element type should not be relied on. To avoid
+    extra conversions (and therefore allocations) it is best practice to
+    directly construct with `itensor([0. 1; 1 0], i', dag(i))` if you want a
+    floating point element type. The conversion is done as a performance
+    optimization since often tensors are passed to BLAS/LAPACK and need to be
+    converted to floating point types compatible with those libraries, but
+    future projects in Julia may allow for efficient operations with more
+    general element types (for example see https://github.com/JuliaLinearAlgebra/Octavian.jl).
 """
 function ITensor(
   as::AliasStyle,
@@ -758,13 +772,6 @@ Order(T::ITensor) = Order(order(T))
 ndims(T::ITensor)::Int = ndims(tensor(T))
 
 """
-    dim(A::ITensor)
-
-The total dimension of the space the tensor lives in, `prod(dims(A))`.
-"""
-dim(T::ITensor)::Int = dim(tensor(T))
-
-"""
     maxdim(A::ITensor)
 
 The maximum dimension of the tensor indices.
@@ -777,6 +784,13 @@ maxdim(T::ITensor)::Int = maxdim(tensor(T))
 The minimum dimension of the tensor indices.
 """
 mindim(T::ITensor)::Int = mindim(tensor(T))
+
+"""
+    dim(A::ITensor)
+
+The total dimension of the space the tensor lives in, `prod(dims(A))`.
+"""
+dim(T::ITensor)::Int = dim(tensor(T))
 
 """
     dim(A::ITensor, n::Int)
