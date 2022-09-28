@@ -362,9 +362,9 @@ NDTensors.dir(i::Index) = dir(i)
 """
     hasqns(::Index)
 
-  Checks of the Index has QNs or not.
-  """
-  hasqns(i::Index) = hasqns(space(i))
+Checks of the Index has QNs or not.
+"""
+hasqns(i::Index) = hasqns(space(i))
 
 #######################
 # End Index properties
