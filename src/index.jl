@@ -346,8 +346,8 @@ tags are compared.
 (i1::Index == i2::Index) =
   (id(i1) == id(i2)) && (plev(i1) == plev(i2)) && (tags(i1) == tags(i2))
 
-  """
-      dir(i::Index)
+"""
+    dir(i::Index)
 
   Return the direction of an `Index`
   (`ITensors.In`, `ITensors.Out`, or `ITensors.Neither`).
