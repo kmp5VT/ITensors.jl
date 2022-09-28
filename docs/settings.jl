@@ -29,6 +29,7 @@ settings = Dict(
       "Index" => "IndexType.md",
       "Index collections" => "IndexSetType.md",
       "ITensor" => "ITensorType.md",
+      "Tensor Algebra" => "TensorAlgebra.md",
       "MPS and MPO" => "MPSandMPO.md",
       "QN" => "QN.md",
       "SiteType and op, state, val functions" => "SiteType.md",
