@@ -659,7 +659,6 @@ eachindval(i::Index) = (i => n for n in eachval(i))
 # End Index Iterators
 #
 
-
 #######################
 # IndexVal functions
 #
