@@ -357,7 +357,7 @@ dir(i::Index) = i.dir
 # Used for generic code in NDTensors
 NDTensors.dir(i::Index) = dir(i)
 
-  hasqns(::Integer) = false
+hasqns(::Integer) = false
 
 """
     hasqns(::Index)
