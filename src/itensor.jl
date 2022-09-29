@@ -79,7 +79,7 @@ NDTensors.Dense{Float64,Array{Float64,1}}
 
 ## The categories in this file are
 ## constructors, properties, iterators,
-## Accessor Functions, Index Functions and Operations
+## Accessor/Mutator Functions, Index Functions and Operations
 mutable struct ITensor
   tensor::Tensor
   function ITensor(::AllowAlias, T::Tensor{<:Any,<:Any,<:TensorStorage,<:Tuple})
@@ -946,7 +946,7 @@ iterate(A::ITensor, args...) = iterate(tensor(A), args...)
 #
 
 #########################
-# ITensor Accessor Functions
+# ITensor Accessor/Mutator functions
 #
 
 function settensor!(T::ITensor, t)::ITensor
@@ -1279,7 +1279,7 @@ end
 #end
 
 #########################
-# End ITensor Accessor Functions
+# End ITensor Accessor/Mutator functions
 #
 
 #########################

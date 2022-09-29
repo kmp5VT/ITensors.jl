@@ -83,9 +83,13 @@ CartesianIndices(::ITensor)
 eachindval(::ITensor)
 iterate(::ITensor, args...)
 ```
-## Getting and setting elements
+
+## ITensor accessors/mutators
 
 ```@docs
+complex(::ITensor)
+scalar(::ITensor)
+fill!(::ITensor, ::Number)
 getindex(::ITensor, ::Any...)
 setindex!(::ITensor, ::Number, ::Int...)
 ```
