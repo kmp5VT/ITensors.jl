@@ -4,7 +4,7 @@ Collections of `Index` are used throughout ITensors.jl to represent the dimensio
 
 ## [Priming and tagging](@id Priming_and_tagging_IndexSet)
 
-Documentation for priming and tagging collections of Index can be found in the ITensor [Priming and tagging](@ref Priming_and_tagging_ITensor) section.
+Documentation for priming and tagging collections of Index can be found in the ITensor [Modifying tags and index sets](@ref Priming_and_tagging_ITensor) section.
 
 ## Set operations
 

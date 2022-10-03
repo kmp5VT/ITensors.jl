@@ -721,6 +721,19 @@ end
 function Vector(T::ITensor)::Vector
   return Array(T, inds(T)...)
 end
+
+"""
+    copyto!(B::ITensor, A::ITensor)
+
+Copy the contents of ITensor A into ITensor B.
+```
+B .= A
+```
+"""
+function copyto!(B::ITensor, A::ITensor)
+  B .= A
+  return B
+end
 #########################
 # End ITensor constructors
 #
@@ -770,6 +783,20 @@ order(T::ITensor)::Int = ndims(T)
 Order(T::ITensor) = Order(order(T))
 
 ndims(T::ITensor)::Int = ndims(tensor(T))
+
+"""
+    inds(T::ITensor)
+
+Return the indices of the ITensor as a Tuple.
+"""
+inds(T::ITensor) = inds(tensor(T))
+
+"""
+    ind(T::ITensor, i::Int)
+
+Get the Index of the ITensor along dimension i.
+"""
+ind(T::ITensor, i::Int) = ind(tensor(T), i)
 
 """
     maxdim(A::ITensor)
@@ -826,6 +853,11 @@ dir(A::ITensor, i::Index) = dir(inds(A), i)
 dirs(A::ITensor, is) = dirs(inds(A), is)
 
 # TODO: add isdiag(::Tensor) to NDTensors
+"""
+    isdiag(T::ITensor)
+
+Return if the ITensor is diagonal or if the tensor is block diagonal
+"""
 isdiag(T::ITensor)::Bool = (storage(T) isa Diag || storage(T) isa DiagBlockSparse)
 
 diaglength(T::ITensor) = diaglength(tensor(T))
@@ -834,21 +866,44 @@ diaglength(T::ITensor) = diaglength(tensor(T))
 # Block sparse related functions
 # (Maybe create fallback definitions for dense tensors)
 #
+"""
+    hasqns(T::Union{Tensor,ITensor})
 
+Return if the ITensor `T` uses QNIndex
+"""
 hasqns(T::Union{Tensor,ITensor}) = hasqns(inds(T))
 
-eachnzblock(T::ITensor) = eachnzblock(tensor(T))
+"""
+    nnz(T::ITensor)
 
+Returns the number of nonzero elements in the ITensor `T`
+"""
 nnz(T::ITensor) = nnz(tensor(T))
 
+"""
+    nblocks(T::ITensor, args...)
+
+Returns the number of block that the tensor `T` constins
+"""
 nblocks(T::ITensor, args...) = nblocks(tensor(T), args...)
 
+"""
+    nnzblocks(T::ITensor)
+    nnzblocks(T::ITensor, args...)
+
+Returns the number of nonzero blocks which an ITensor `T` contains
+"""
 nnzblocks(T::ITensor) = nnzblocks(tensor(T))
 
 nzblock(T::ITensor, args...) = nzblock(tensor(T), args...)
 
 nzblocks(T::ITensor) = nzblocks(tensor(T))
 
+"""
+    blockoffsets(T::ITensor)
+
+Returns the dimensions of the offsets which are between each block
+"""
 blockoffsets(T::ITensor) = blockoffsets(tensor(T))
 
 # XXX: rename isemptystorage?
@@ -926,6 +981,23 @@ Iterate over the elements of an ITensor.
 """
 iterate(A::ITensor, args...) = iterate(tensor(A), args...)
 
+"""
+    eachnzblock(T::ITensor)
+
+Returns an iterator which loops over the nonzero blocks of an ITensor `T`
+"""
+eachnzblock(T::ITensor) = eachnzblock(tensor(T))
+
+"""
+    eachindex(A::ITensor)
+
+Create an iterable object for visiting each element of the ITensor `A` (including structually
+zero elements for sparse tensors).
+
+For example, for dense tensors this may return `1:length(A)`, while for sparse tensors
+it may return a Cartesian range.
+"""
+eachindex(A::ITensor) = eachindex(tensor(A))
 #########################
 # End ITensor iterators
 #
@@ -1023,7 +1095,12 @@ end
 # Block sparse related functions
 # (Maybe create fallback definitions for dense tensors)
 #
+"""
+    insertblock!(T::ITensor, args...)
 
+Insert a dense block into a target ITensor `T`, does not supprot a tensor
+with flux.
+"""
 function insertblock!(T::ITensor, args...)
   (!isnothing(flux(T)) && flux(T) ≠ flux(T, args...)) &&
     error("Block does not match current flux")
@@ -1032,6 +1109,11 @@ function insertblock!(T::ITensor, args...)
   return T
 end
 
+"""
+    insert_diag_blocks!(T::ITensor)
+
+Insert a block into a block diagonal tensor.
+"""
 function insert_diag_blocks!(T::ITensor)
   ## TODO: Add a check that all diag blocks
   ## have the correct flux
@@ -1271,32 +1353,18 @@ end
 # ITensor Index Functions
 #
 
-"""
-    inds(T::ITensor)
-
-Return the indices of the ITensor as a Tuple.
-"""
-inds(T::ITensor) = inds(tensor(T))
-
-"""
-    ind(T::ITensor, i::Int)
-
-Get the Index of the ITensor along dimension i.
-"""
-ind(T::ITensor, i::Int) = ind(tensor(T), i)
-
-"""
-    eachindex(A::ITensor)
-
-Create an iterable object for visiting each element of the ITensor `A` (including structually
-zero elements for sparse tensors).
-
-For example, for dense tensors this may return `1:length(A)`, while for sparse tensors
-it may return a Cartesian range.
-"""
-eachindex(A::ITensor) = eachindex(tensor(A))
+#
+# Collecting/comparing tensor indices
+#
 
 # TODO: name this `inds` or `indscollection`?
+"""
+    itensor2inds(A::ITensor)
+    itensor2inds(A::Tensor)
+    itensor2inds(i::Index)
+
+Maps an itensor, tensor or index to a tuple of Index
+"""
 itensor2inds(A::ITensor)::Any = inds(A)
 itensor2inds(A::Tensor) = inds(A)
 itensor2inds(i::Index) = (i,)
@@ -1447,6 +1515,54 @@ filterinds(is::Indices) = is
 
 # For backwards compatibility
 inds(A...; kwargs...) = filterinds(A...; kwargs...)
+
+"""
+    indpairs(T::ITensor; plev::Pair{Int,Int}=0 => 1, tags::Pair=ts"" => ts"")
+
+Returns a tuple of pairs of indices, where the pairs
+are determined by the prime level pairs `plev` and
+tag pairs `tags`.
+"""
+function indpairs(T::ITensor; plev::Pair{Int,Int}=0 => 1, tags::Pair=ts"" => ts"")
+  is1 = filterinds(T; plev=first(plev), tags=first(tags))
+  is2 = filterinds(T; plev=last(plev), tags=last(tags))
+  is2to1 = replacetags(mapprime(is2, last(plev) => first(plev)), last(tags) => first(tags))
+  is_first = commoninds(is1, is2to1)
+  is_last = replacetags(
+    mapprime(is_first, first(plev) => last(plev)), first(tags) => last(tags)
+  )
+  is_last = permute(commoninds(T, is_last), is_last)
+  return is_first .=> is_last
+end
+
+# XXX: rename to:
+# hastags(any, A, ts)
+"""
+    anyhastags(A::ITensor, ts::Union{String, TagSet})
+    hastags(A::ITensor, ts::Union{String, TagSet})
+
+Check if any of the indices in the ITensor have the specified tags.
+"""
+anyhastags(A::ITensor, ts) = anyhastags(inds(A), ts)
+
+hastags(A::ITensor, ts) = hastags(inds(A), ts)
+
+# XXX: rename to:
+# hastags(all, A, ts)
+"""
+    allhastags(A::ITensor, ts::Union{String, TagSet})
+
+Check if all of the indices in the ITensor have the specified tags.
+"""
+allhastags(A::ITensor, ts) = allhastags(inds(A), ts)
+
+#
+# End Collecting/comparing tensor indices
+#
+
+#
+# Modifying tags and index sets
+#
 
 # in-place versions of priming and tagging
 for fname in (
@@ -1656,52 +1772,31 @@ The storage of the ITensor is not modified or copied (the output ITensor is a
 view of the input ITensor).
 """ swapinds(::ITensor, ::Any...)
 
-# XXX: rename to:
-# hastags(any, A, ts)
-"""
-    anyhastags(A::ITensor, ts::Union{String, TagSet})
-    hastags(A::ITensor, ts::Union{String, TagSet})
-
-Check if any of the indices in the ITensor have the specified tags.
-"""
-anyhastags(A::ITensor, ts) = anyhastags(inds(A), ts)
-
-hastags(A::ITensor, ts) = hastags(inds(A), ts)
-
-# XXX: rename to:
-# hastags(all, A, ts)
-"""
-    allhastags(A::ITensor, ts::Union{String, TagSet})
-
-Check if all of the indices in the ITensor have the specified tags.
-"""
-allhastags(A::ITensor, ts) = allhastags(inds(A), ts)
-
-# Returns a tuple of pairs of indices, where the pairs
-# are determined by the prime level pairs `plev` and
-# tag pairs `tags`.
-function indpairs(T::ITensor; plev::Pair{Int,Int}=0 => 1, tags::Pair=ts"" => ts"")
-  is1 = filterinds(T; plev=first(plev), tags=first(tags))
-  is2 = filterinds(T; plev=last(plev), tags=last(tags))
-  is2to1 = replacetags(mapprime(is2, last(plev) => first(plev)), last(tags) => first(tags))
-  is_first = commoninds(is1, is2to1)
-  is_last = replacetags(
-    mapprime(is_first, first(plev) => last(plev)), first(tags) => last(tags)
-  )
-  is_last = permute(commoninds(T, is_last), is_last)
-  return is_first .=> is_last
-end
+#
+# End Modifying tags and index sets
+#
 
 #########################
 # End ITensor Index Functions
 #
 
 #########################
-# ITensor Operations
+# ITensor Math Operations
 #
 
+"""
+    similar(T::ITensor, args...)
+
+TODO determine what the use case of this and learn more
+"""
 similar(T::ITensor, args...)::ITensor = itensor(NDTensors.similar(tensor(T), args...))
 
+"""
+    isapprox(A::ITensor, B::ITensor; kwargs...)
+
+Determines if a pair of ITenors are approximately the same. TO satisfy they must
+carry the same number of modes
+"""
 function isapprox(A::ITensor, B::ITensor; kwargs...)
   if !hassameinds(A, B)
     error("In `isapprox(::ITensor, ::ITensor)`, the indices of the ITensors do not
@@ -1712,10 +1807,20 @@ function isapprox(A::ITensor, B::ITensor; kwargs...)
   return isapprox(array(A), array(B); kwargs...)
 end
 
+"""
+    randn!(T::ITensor)
+
+Overwrites the provided tensor `T` with random numbers
+"""
 function randn!(T::ITensor)
   return settensor!(T, randn!!(tensor(T)))
 end
 
+"""
+    norm(T::ITensor)
+
+returns the canonical square root of the L2 norm of an ITensor `T`
+"""
 norm(T::ITensor) = norm(tensor(T))
 
 function dag(as::AliasStyle, T::Tensor{ElT,N}) where {ElT,N}
@@ -1764,7 +1869,11 @@ end
 # TODO: what about noncommutative number types?
 (x::Number * T::ITensor) = T * x
 
-(A::ITensor / x::Number) = itensor(tensor(A) / x)
+function (A::ITensor / x::Number)
+
+  inv = 1.0 / x;
+  itensor(tensor(A) * inv)
+end
 
 (T1::ITensor / T2::ITensor) = T1 / T2[]
 
@@ -1839,20 +1948,7 @@ inner(y::ITensor, x::ITensor) = (dag(y) * x)[]
 
 Normalize an ITensor in-place, such that norm(T)==1.
 """
-normalize!(T::ITensor) = (T .*= 1 / norm(T))
-
-"""
-    copyto!(B::ITensor, A::ITensor)
-
-Copy the contents of ITensor A into ITensor B.
-```
-B .= A
-```
-"""
-function copyto!(R::ITensor, T::ITensor)
-  R .= T
-  return R
-end
+normalize!(T::ITensor) = (T .*= 1.0 / norm(T))
 
 # Note this already assumes R === T1, which will be lifted
 # in the future.
@@ -1879,6 +1975,7 @@ map(f, x::ITensor) = itensor(map(f, tensor(x)))
 
 """
     axpy!(a::Number, v::ITensor, w::ITensor)
+
 ```
 w .+= a .* v
 ```
@@ -1886,7 +1983,7 @@ w .+= a .* v
 axpy!(a::Number, v::ITensor, w::ITensor) = (w .+= a .* v)
 
 """
-axpby!(a,v,b,w)
+    axpby!(a,v,b,w)
 
 ```
 w .= a .* v + b .* w

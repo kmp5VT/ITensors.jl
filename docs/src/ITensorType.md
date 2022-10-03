@@ -23,6 +23,7 @@ onehot
 
 ```@docs
 itensor(::Array{<:Number}, ::ITensors.Indices)
+dense(::ITensor)
 ```
 
 ### QN BlockSparse Constructors
@@ -61,12 +62,18 @@ matrix(::ITensor)
 vector(::ITensor)
 ```
 
+### Copy constructors
+```@docs
+copyto!
+```
+
 ## Properties
 
 ```@docs
 storage(::ITensor)
 order(::ITensor)
 inds(::ITensor)
+ind(::ITensor, ::Int)
 maxdim(::ITensor)
 mindim(::ITensor)
 dim(::ITensor)
@@ -82,6 +89,8 @@ ishermitian(::ITensor; kwargs...)
 CartesianIndices(::ITensor)
 eachindval(::ITensor)
 iterate(::ITensor, args...)
+eachnzblock(::ITensor)
+eachindex(::ITensor)
 ```
 
 ## ITensor accessors/mutators
@@ -94,10 +103,28 @@ getindex(::ITensor, ::Any...)
 setindex!(::ITensor, ::Number, ::Int...)
 ```
 
-## [Priming and tagging](@id Priming_and_tagging_ITensor)
+## ITensor index functions
+
+### Collecting/comparing tensor indices
 
 ```@docs
-ind(::ITensor, ::Int)
+hasinds
+hascommoninds
+commoninds
+commonind
+noncommoninds
+noncommonind
+uniqueinds
+uniqueind
+unioninds
+unionind
+anyhastags
+allhastags
+```
+
+### [Modifying tags and index sets](@id Priming_and_tagging_ITensor)
+
+```@docs
 prime(::ITensor, ::Any...)
 setprime(::ITensor, ::Any...)
 noprime(::ITensor, ::Any...)
@@ -108,25 +135,6 @@ removetags(::ITensor, ::Any...)
 replacetags(::ITensor, ::Any...)
 settags(::ITensor, ::Any...)
 swaptags(::ITensor, ::Any...)
-```
-
-## Index collections set operations
-
-```@docs
-commoninds
-commonind
-uniqueinds
-uniqueind
-noncommoninds
-noncommonind
-unioninds
-unionind
-hascommoninds
-```
-
-## Index Manipulations
-
-```@docs
 replaceind(::ITensor, ::Any...)
 replaceinds(::ITensor, ::Any...)
 swapind(::ITensor, ::Any...)
@@ -136,15 +144,20 @@ swapinds(::ITensor, ::Any...)
 ## Math operations
 
 ```@docs
+dag(::ITensor; kwargs...)
 *(::ITensor, ::ITensor)
-dag(T::ITensor; kwargs...)
+normalize!(::ITensor)
 exp(::ITensor, ::Any, ::Any)
 nullspace(::ITensor, ::Any...)
+axpy!
+scale!
+mul!
 ```
 
-## Memory operations
+## Permutations operations
 
 ```@docs
 permute(::ITensor, ::Any)
-dense(::ITensor)
+transpose(::ITensor)
+adjoint(::ITensor)
 ```
