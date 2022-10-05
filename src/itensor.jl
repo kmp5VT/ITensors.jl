@@ -2016,7 +2016,7 @@ mul!(R::ITensor, α::Number, T::ITensor) = (R .= α .* T)
 mul!(R::ITensor, T::ITensor, α::Number) = (R .= T .* α)
 
 #########################
-# End ITensor Operations
+# End ITensor Math Operations
 #
 
 # Helper function for deprecating a keyword argument
