@@ -355,7 +355,7 @@ end
 #
 
 ####################
-# MPS operations
+# MPS Algebra operations
 #
 
 set_data(A::MPS, data::Vector{ITensor}) = MPS(data, A.llim, A.rlim)
@@ -912,7 +912,7 @@ function expect(psi::MPS, op1::Matrix{<:Number}, ops::Matrix{<:Number}...; kwarg
   return expect(psi, (op1, ops...); kwargs...)
 end
 ####################
-# End MPS operations
+# End MPS Algebra operations
 #
 
 ####################
