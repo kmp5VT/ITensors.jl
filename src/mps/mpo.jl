@@ -5,6 +5,11 @@
 A finite size matrix product operator type.
 Keeps track of the orthogonality center.
 """
+
+###################
+# MPO constructors
+#
+
 mutable struct MPO <: AbstractMPS
   data::Vector{ITensor}
   llim::Int
@@ -15,17 +20,7 @@ function MPO(A::Vector{<:ITensor}; ortho_lims::UnitRange=1:length(A))
   return MPO(A, first(ortho_lims) - 1, last(ortho_lims) + 1)
 end
 
-set_data(A::MPO, data::Vector{ITensor}) = MPO(data, A.llim, A.rlim)
-
 MPO() = MPO(ITensor[], 0, 0)
-
-function convert(::Type{MPS}, M::MPO)
-  return MPS(data(M); ortho_lims=ortho_lims(M))
-end
-
-function convert(::Type{MPO}, M::MPS)
-  return MPO(data(M); ortho_lims=ortho_lims(M))
-end
 
 function MPO(::Type{ElT}, sites::Vector{<:Index}) where {ElT<:Number}
   N = length(sites)
@@ -127,6 +122,20 @@ function MPO(A::ITensor, sites::Vector{<:Index}; kwargs...)
   return MPO(A, IndexSet.(prime.(sites), dag.(sites)); kwargs...)
 end
 
+set_data(A::MPO, data::Vector{ITensor}) = MPO(data, A.llim, A.rlim)
+
+function convert(::Type{MPS}, M::MPO)
+  return MPS(data(M); ortho_lims=ortho_lims(M))
+end
+
+function convert(::Type{MPO}, M::MPS)
+  return MPO(data(M); ortho_lims=ortho_lims(M))
+end
+
+###################
+# End MPO constructors
+#
+
 function outer_mps_mps_deprecation_warning()
   return "Calling `outer(ψ::MPS, ϕ::MPS)` for MPS `ψ` and `ϕ` with shared indices is deprecated. Currently, we automatically prime `ψ` to make sure the site indices don't clash, but that will no longer be the case in ITensors v0.4. To upgrade your code, call `outer(ψ', ϕ)`. Although the new interface seems less convenient, it will allow `outer` to accept more general outer products going forward, such as outer products where some indices are shared (a batched outer product) or outer products of MPS between site indices that aren't just related by a single prime level."
 end
@@ -137,137 +146,6 @@ function deprecate_make_inds_unmatch(::typeof(outer), ψ::MPS, ϕ::MPS; kw...)
     ψ = ψ'
   end
   return ψ, ϕ
-end
-
-"""
-    outer(x::MPS, y::MPS; <keyword argument>) -> MPO
-
-Compute the outer product of `MPS` `x` and `MPS` `y`,
-returning an `MPO` approximation. Note that `y` will be conjugated.
-
-In Dirac notation, this is the operation `|x⟩⟨y|`.
-
-If you want an outer product of an MPS with itself, you should
-call `outer(x', x; kwargs...)` so that the resulting MPO
-has site indices with indices coming in pairs of prime levels
-of 1 and 0. If not, the site indices won't be unique which would
-not be an outer product.
-
-For example:
-
-```julia
-s = siteinds("S=1/2", 5)
-x = randomMPS(s)
-y = randomMPS(s)
-outer(x, y) # Incorrect! Site indices must be unique.
-outer(x', y) # Results in an MPO with pairs of primed and unprimed indices.
-```
-
-This allows for more general outer products, such as more general
-MPO outputs which don't have pairs of primed and unprimed indices,
-or outer products where the input MPS are vectorizations of MPOs.
-
-For example:
-
-```julia
-s = siteinds("S=1/2", 5)
-X = MPO(s, "Id")
-Y = MPO(s, "Id")
-x = convert(MPS, X)
-y = convert(MPS, Y)
-outer(x, y) # Incorrect! Site indices must be unique.
-outer(x', y) # Incorrect! Site indices must be unique.
-outer(addtags(x, "Out"), addtags(y, "In")) # This performs a proper outer product.
-```
-
-The keyword arguments determine the truncation, and accept
-the same arguments as `contract(::MPO, ::MPO; kwargs...)`.
-
-See also [`apply`](@ref), [`contract`](@ref).
-"""
-function outer(ψ::MPS, ϕ::MPS; kw...)
-  ψ, ϕ = deprecate_make_inds_unmatch(outer, ψ, ϕ; kw...)
-
-  ψmat = convert(MPO, ψ)
-  ϕmat = convert(MPO, dag(ϕ))
-  return contract(ψmat, ϕmat; kw...)
-end
-
-"""
-    projector(x::MPS; <keyword argument>) -> MPO
-
-Computes the projector onto the state `x`. In Dirac notation, this is the operation `|x⟩⟨x|/|⟨x|x⟩|²`.
-
-Use keyword arguments to control the level of truncation, which are
-the same as those accepted by `contract(::MPO, ::MPO; kw...)`.
-
-# Keywords
-
-  - `normalize::Bool=true`: whether or not to normalize the input MPS before
-     forming the projector. If `normalize==false` and the input MPS is not
-     already normalized, this function will not output a proper project, and
-     simply outputs `outer(x, x) = |x⟩⟨x|`, i.e. the projector scaled by `norm(x)^2`.
-  - truncation keyword arguments accepted by `contract(::MPO, ::MPO; kw...)`.
-
-See also [`outer`](@ref), [`contract`](@ref).
-"""
-function projector(ψ::MPS; normalize::Bool=true, kw...)
-  ψψᴴ = outer(ψ', ψ; kw...)
-  if normalize
-    normalize!(ψψᴴ[orthocenter(ψψᴴ)])
-  end
-  return ψψᴴ
-end
-
-# XXX: rename originalsiteind?
-"""
-    siteind(M::MPO, j::Int; plev = 0, kwargs...)
-
-Get the first site Index of the MPO found, by
-default with prime level 0.
-"""
-siteind(M::MPO, j::Int; kwargs...) = siteind(first, M, j; plev=0, kwargs...)
-
-# TODO: make this return the site indices that would have
-# been used to create the MPO? I.e.:
-# [dag(siteinds(M, j; plev = 0, kwargs...)) for j in 1:length(M)]
-"""
-    siteinds(M::MPO; kwargs...)
-
-Get a Vector of IndexSets of all the site indices of M.
-"""
-siteinds(M::MPO; kwargs...) = siteinds(all, M; kwargs...)
-
-function siteinds(Mψ::Tuple{MPO,MPS}, n::Int; kwargs...)
-  return siteinds(uniqueinds, Mψ[1], Mψ[2], n; kwargs...)
-end
-
-function nsites(Mψ::Tuple{MPO,MPS})
-  M, ψ = Mψ
-  N = length(M)
-  @assert N == length(ψ)
-  return N
-end
-
-siteinds(Mψ::Tuple{MPO,MPS}; kwargs...) = [siteinds(Mψ, n; kwargs...) for n in 1:nsites(Mψ)]
-
-# XXX: rename originalsiteinds?
-"""
-    firstsiteinds(M::MPO; kwargs...)
-
-Get a Vector of the first site Index found on each site of M.
-
-By default, it finds the first site Index with prime level 0.
-"""
-firstsiteinds(M::MPO; kwargs...) = siteinds(first, M; plev=0, kwargs...)
-
-function hassameinds(::typeof(siteinds), ψ::MPS, Hϕ::Tuple{MPO,MPS})
-  N = length(ψ)
-  @assert N == length(Hϕ[1]) == length(Hϕ[1])
-  for n in 1:N
-    !hassameinds(siteinds(Hϕ, n), siteinds(ψ, n)) && return false
-  end
-  return true
 end
 
 function inner_mps_mpo_mps_deprecation_warning()
@@ -348,6 +226,90 @@ function deprecate_make_inds_match!(
     end
   end
   return ydag, A, x
+end
+
+###################
+# MPO Algebra Operations
+#
+
+"""
+    outer(x::MPS, y::MPS; <keyword argument>) -> MPO
+
+Compute the outer product of `MPS` `x` and `MPS` `y`,
+returning an `MPO` approximation. Note that `y` will be conjugated.
+
+In Dirac notation, this is the operation `|x⟩⟨y|`.
+
+If you want an outer product of an MPS with itself, you should
+call `outer(x', x; kwargs...)` so that the resulting MPO
+has site indices with indices coming in pairs of prime levels
+of 1 and 0. If not, the site indices won't be unique which would
+not be an outer product.
+
+For example:
+
+```julia
+s = siteinds("S=1/2", 5)
+x = randomMPS(s)
+y = randomMPS(s)
+outer(x, y) # Incorrect! Site indices must be unique.
+outer(x', y) # Results in an MPO with pairs of primed and unprimed indices.
+```
+
+This allows for more general outer products, such as more general
+MPO outputs which don't have pairs of primed and unprimed indices,
+or outer products where the input MPS are vectorizations of MPOs.
+
+For example:
+
+```julia
+s = siteinds("S=1/2", 5)
+X = MPO(s, "Id")
+Y = MPO(s, "Id")
+x = convert(MPS, X)
+y = convert(MPS, Y)
+outer(x, y) # Incorrect! Site indices must be unique.
+outer(x', y) # Incorrect! Site indices must be unique.
+outer(addtags(x, "Out"), addtags(y, "In")) # This performs a proper outer product.
+```
+
+The keyword arguments determine the truncation, and accept
+the same arguments as `contract(::MPO, ::MPO; kwargs...)`.
+
+See also [`apply`](@ref), [`contract`](@ref).
+"""
+function outer(ψ::MPS, ϕ::MPS; kw...)
+  ψ, ϕ = deprecate_make_inds_unmatch(outer, ψ, ϕ; kw...)
+
+  ψmat = convert(MPO, ψ)
+  ϕmat = convert(MPO, dag(ϕ))
+  return contract(ψmat, ϕmat; kw...)
+end
+
+"""
+    projector(x::MPS; <keyword argument>) -> MPO
+
+Computes the projector onto the state `x`. In Dirac notation, this is the operation `|x⟩⟨x|/|⟨x|x⟩|²`.
+
+Use keyword arguments to control the level of truncation, which are
+the same as those accepted by `contract(::MPO, ::MPO; kw...)`.
+
+# Keywords
+
+  - `normalize::Bool=true`: whether or not to normalize the input MPS before
+     forming the projector. If `normalize==false` and the input MPS is not
+     already normalized, this function will not output a proper project, and
+     simply outputs `outer(x, x) = |x⟩⟨x|`, i.e. the projector scaled by `norm(x)^2`.
+  - truncation keyword arguments accepted by `contract(::MPO, ::MPO; kw...)`.
+
+See also [`outer`](@ref), [`contract`](@ref).
+"""
+function projector(ψ::MPS; normalize::Bool=true, kw...)
+  ψψᴴ = outer(ψ', ψ; kw...)
+  if normalize
+    normalize!(ψψᴴ[orthocenter(ψψᴴ)])
+  end
+  return ψψᴴ
 end
 
 """
@@ -973,6 +935,69 @@ function sample(M::MPO)
   end
   return result
 end
+
+###################
+# End MPO Algebra Operator
+#
+
+####################
+# MPO Properties
+#
+
+# XXX: rename originalsiteind?
+"""
+    siteind(M::MPO, j::Int; plev = 0, kwargs...)
+
+Get the first site Index of the MPO found, by
+default with prime level 0.
+"""
+siteind(M::MPO, j::Int; kwargs...) = siteind(first, M, j; plev=0, kwargs...)
+
+# TODO: make this return the site indices that would have
+# been used to create the MPO? I.e.:
+# [dag(siteinds(M, j; plev = 0, kwargs...)) for j in 1:length(M)]
+"""
+    siteinds(M::MPO; kwargs...)
+
+Get a Vector of IndexSets of all the site indices of M.
+"""
+siteinds(M::MPO; kwargs...) = siteinds(all, M; kwargs...)
+
+function siteinds(Mψ::Tuple{MPO,MPS}, n::Int; kwargs...)
+  return siteinds(uniqueinds, Mψ[1], Mψ[2], n; kwargs...)
+end
+
+function nsites(Mψ::Tuple{MPO,MPS})
+  M, ψ = Mψ
+  N = length(M)
+  @assert N == length(ψ)
+  return N
+end
+
+siteinds(Mψ::Tuple{MPO,MPS}; kwargs...) = [siteinds(Mψ, n; kwargs...) for n in 1:nsites(Mψ)]
+
+# XXX: rename originalsiteinds?
+"""
+    firstsiteinds(M::MPO; kwargs...)
+
+Get a Vector of the first site Index found on each site of M.
+
+By default, it finds the first site Index with prime level 0.
+"""
+firstsiteinds(M::MPO; kwargs...) = siteinds(first, M; plev=0, kwargs...)
+
+function hassameinds(::typeof(siteinds), ψ::MPS, Hϕ::Tuple{MPO,MPS})
+  N = length(ψ)
+  @assert N == length(Hϕ[1]) == length(Hϕ[1])
+  for n in 1:N
+    !hassameinds(siteinds(Hϕ, n), siteinds(ψ, n)) && return false
+  end
+  return true
+end
+
+####################
+# End MPO Properties
+#
 
 function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, M::MPO)
   g = create_group(parent, name)

@@ -11,11 +11,13 @@ mutable struct MPS <: AbstractMPS
   rlim::Int
 end
 
+#####################
+# MPS constructors
+#
+
 function MPS(A::Vector{<:ITensor}; ortho_lims::UnitRange=1:length(A))
   return MPS(A, first(ortho_lims) - 1, last(ortho_lims) + 1)
 end
-
-set_data(A::MPS, data::Vector{ITensor}) = MPS(data, A.llim, A.rlim)
 
 @doc """
     MPS(v::Vector{<:ITensor})
@@ -82,117 +84,6 @@ function MPS(
 end
 
 MPS(sites::Vector{<:Index}, args...; kwargs...) = MPS(Float64, sites, args...; kwargs...)
-
-function randomU(eltype::Type{<:Number}, s1::Index, s2::Index)
-  if !hasqns(s1) && !hasqns(s2)
-    mdim = dim(s1) * dim(s2)
-    RM = randn(eltype, mdim, mdim)
-    Q, _ = NDTensors.qr_positive(RM)
-    G = itensor(Q, dag(s1), dag(s2), s1', s2')
-  else
-    M = randomITensor(eltype, QN(), s1', s2', dag(s1), dag(s2))
-    U, S, V = svd(M, (s1', s2'))
-    u = commonind(U, S)
-    v = commonind(S, V)
-    replaceind!(U, u, v)
-    G = U * V
-  end
-  return G
-end
-
-function randomizeMPS!(eltype::Type{<:Number}, M::MPS, sites::Vector{<:Index}, linkdims=1)
-  _linkdims = _fill_linkdims(linkdims, sites)
-  if isone(length(sites))
-    randn!(M[1])
-    normalize!(M)
-    return M
-  end
-  N = length(sites)
-  c = div(N, 2)
-  max_pass = 100
-  for pass in 1:max_pass, half in 1:2
-    if half == 1
-      (db, brange) = (+1, 1:1:(N - 1))
-    else
-      (db, brange) = (-1, N:-1:2)
-    end
-    for b in brange
-      s1 = sites[b]
-      s2 = sites[b + db]
-      G = randomU(eltype, s1, s2)
-      T = noprime(G * M[b] * M[b + db])
-      rinds = uniqueinds(M[b], M[b + db])
-
-      b_dim = half == 1 ? b : b + db
-      U, S, V = svd(T, rinds; maxdim=_linkdims[b_dim], utags="Link,l=$(b-1)")
-      M[b] = U
-      M[b + db] = S * V
-      M[b + db] /= norm(M[b + db])
-    end
-    if half == 2 && dim(commonind(M[c], M[c + 1])) >= _linkdims[c]
-      break
-    end
-  end
-  setleftlim!(M, 0)
-  setrightlim!(M, 2)
-  if dim(commonind(M[c], M[c + 1])) < _linkdims[c]
-    @warn "MPS center bond dimension is less than requested (you requested $(_linkdims[c]), but in practice it is $(dim(commonind(M[c], M[c + 1]))). This is likely due to technicalities of truncating quantum number sectors."
-  end
-end
-
-function randomCircuitMPS(
-  eltype::Type{<:Number}, sites::Vector{<:Index}, linkdims::Vector{<:Integer}; kwargs...
-)
-  N = length(sites)
-  M = MPS(N)
-
-  if N == 1
-    M[1] = ITensor(randn(eltype, dim(sites[1])), sites[1])
-    M[1] /= norm(M[1])
-    return M
-  end
-
-  l = Vector{Index}(undef, N)
-
-  d = dim(sites[N])
-  chi = min(linkdims[N - 1], d)
-  l[N - 1] = Index(chi, "Link,l=$(N-1)")
-  O = NDTensors.random_unitary(eltype, chi, d)
-  M[N] = itensor(O, l[N - 1], sites[N])
-
-  for j in (N - 1):-1:2
-    chi *= dim(sites[j])
-    chi = min(linkdims[j - 1], chi)
-    l[j - 1] = Index(chi, "Link,l=$(j-1)")
-    O = NDTensors.random_unitary(eltype, chi, dim(sites[j]) * dim(l[j]))
-    T = reshape(O, (chi, dim(sites[j]), dim(l[j])))
-    M[j] = itensor(T, l[j - 1], sites[j], l[j])
-  end
-
-  O = NDTensors.random_unitary(eltype, 1, dim(sites[1]) * dim(l[1]))
-  l0 = Index(1, "Link,l=0")
-  T = reshape(O, (1, dim(sites[1]), dim(l[1])))
-  M[1] = itensor(T, l0, sites[1], l[1])
-  M[1] *= onehot(eltype, l0 => 1)
-
-  M.llim = 0
-  M.rlim = 2
-
-  return M
-end
-
-function randomCircuitMPS(sites::Vector{<:Index}, linkdims::Vector{<:Integer}; kwargs...)
-  return randomCircuitMPS(Float64, sites, linkdims; kwargs...)
-end
-
-function _fill_linkdims(linkdims::Vector{<:Integer}, sites::Vector{<:Index})
-  @assert length(linkdims) == length(sites) - 1
-  return linkdims
-end
-
-function _fill_linkdims(linkdims::Integer, sites::Vector{<:Index})
-  return fill(linkdims, length(sites) - 1)
-end
 
 """
     randomMPS(eltype::Type{<:Number}, sites::Vector{<:Index}; linkdims=1)
@@ -414,41 +305,126 @@ psi = MPS(sites, states)
 """
 MPS(sites::Vector{<:Index}, states) = MPS(Float64, sites, states)
 
-"""
-    siteind(M::MPS, j::Int; kwargs...)
+function randomCircuitMPS(
+  eltype::Type{<:Number}, sites::Vector{<:Index}, linkdims::Vector{<:Integer}; kwargs...
+)
+  N = length(sites)
+  M = MPS(N)
 
-Get the first site Index of the MPS. Return `nothing` if none is found.
-"""
-siteind(M::MPS, j::Int; kwargs...) = siteind(first, M, j; kwargs...)
-
-"""
-    siteind(::typeof(only), M::MPS, j::Int; kwargs...)
-
-Get the only site Index of the MPS. Return `nothing` if none is found.
-"""
-function siteind(::typeof(only), M::MPS, j::Int; kwargs...)
-  is = siteinds(M, j; kwargs...)
-  if isempty(is)
-    return nothing
+  if N == 1
+    M[1] = ITensor(randn(eltype, dim(sites[1])), sites[1])
+    M[1] /= norm(M[1])
+    return M
   end
-  return only(is)
+
+  l = Vector{Index}(undef, N)
+
+  d = dim(sites[N])
+  chi = min(linkdims[N - 1], d)
+  l[N - 1] = Index(chi, "Link,l=$(N-1)")
+  O = NDTensors.random_unitary(eltype, chi, d)
+  M[N] = itensor(O, l[N - 1], sites[N])
+
+  for j in (N - 1):-1:2
+    chi *= dim(sites[j])
+    chi = min(linkdims[j - 1], chi)
+    l[j - 1] = Index(chi, "Link,l=$(j-1)")
+    O = NDTensors.random_unitary(eltype, chi, dim(sites[j]) * dim(l[j]))
+    T = reshape(O, (chi, dim(sites[j]), dim(l[j])))
+    M[j] = itensor(T, l[j - 1], sites[j], l[j])
+  end
+
+  O = NDTensors.random_unitary(eltype, 1, dim(sites[1]) * dim(l[1]))
+  l0 = Index(1, "Link,l=0")
+  T = reshape(O, (1, dim(sites[1]), dim(l[1])))
+  M[1] = itensor(T, l0, sites[1], l[1])
+  M[1] *= onehot(eltype, l0 => 1)
+
+  M.llim = 0
+  M.rlim = 2
+
+  return M
 end
 
-"""
-    siteinds(M::MPS)
-    siteinds(::typeof(first), M::MPS)
+function randomCircuitMPS(sites::Vector{<:Index}, linkdims::Vector{<:Integer}; kwargs...)
+  return randomCircuitMPS(Float64, sites, linkdims; kwargs...)
+end
 
-Get a vector of the first site Index found on each tensor of the MPS.
+#####################
+# End MPS constructors
+#
 
-    siteinds(::typeof(only), M::MPS)
+####################
+# MPS Algebra operations
+#
 
-Get a vector of the only site Index found on each tensor of the MPS. Errors if more than one is found.
+set_data(A::MPS, data::Vector{ITensor}) = MPS(data, A.llim, A.rlim)
 
-    siteinds(::typeof(all), M::MPS)
+function randomU(eltype::Type{<:Number}, s1::Index, s2::Index)
+  if !hasqns(s1) && !hasqns(s2)
+    mdim = dim(s1) * dim(s2)
+    RM = randn(eltype, mdim, mdim)
+    Q, _ = NDTensors.qr_positive(RM)
+    G = itensor(Q, dag(s1), dag(s2), s1', s2')
+  else
+    M = randomITensor(eltype, QN(), s1', s2', dag(s1), dag(s2))
+    U, S, V = svd(M, (s1', s2'))
+    u = commonind(U, S)
+    v = commonind(S, V)
+    replaceind!(U, u, v)
+    G = U * V
+  end
+  return G
+end
 
-Get a vector of the all site Indices found on each tensor of the MPS. Returns a Vector of IndexSets.
-"""
-siteinds(M::MPS; kwargs...) = siteinds(first, M; kwargs...)
+function randomizeMPS!(eltype::Type{<:Number}, M::MPS, sites::Vector{<:Index}, linkdims=1)
+  _linkdims = _fill_linkdims(linkdims, sites)
+  if isone(length(sites))
+    randn!(M[1])
+    normalize!(M)
+    return M
+  end
+  N = length(sites)
+  c = div(N, 2)
+  max_pass = 100
+  for pass in 1:max_pass, half in 1:2
+    if half == 1
+      (db, brange) = (+1, 1:1:(N - 1))
+    else
+      (db, brange) = (-1, N:-1:2)
+    end
+    for b in brange
+      s1 = sites[b]
+      s2 = sites[b + db]
+      G = randomU(eltype, s1, s2)
+      T = noprime(G * M[b] * M[b + db])
+      rinds = uniqueinds(M[b], M[b + db])
+
+      b_dim = half == 1 ? b : b + db
+      U, S, V = svd(T, rinds; maxdim=_linkdims[b_dim], utags="Link,l=$(b-1)")
+      M[b] = U
+      M[b + db] = S * V
+      M[b + db] /= norm(M[b + db])
+    end
+    if half == 2 && dim(commonind(M[c], M[c + 1])) >= _linkdims[c]
+      break
+    end
+  end
+  setleftlim!(M, 0)
+  setrightlim!(M, 2)
+  if dim(commonind(M[c], M[c + 1])) < _linkdims[c]
+    @warn "MPS center bond dimension is less than requested (you requested $(_linkdims[c]), but in practice it is $(dim(commonind(M[c], M[c + 1]))). This is likely due to technicalities of truncating quantum number sectors."
+  end
+end
+
+function _fill_linkdims(linkdims::Vector{<:Integer}, sites::Vector{<:Index})
+  @assert length(linkdims) == length(sites) - 1
+  return linkdims
+end
+
+function _fill_linkdims(linkdims::Integer, sites::Vector{<:Index})
+  return fill(linkdims, length(sites) - 1)
+end
 
 function replace_siteinds!(M::MPS, sites)
   for j in eachindex(M)
@@ -935,6 +911,52 @@ end
 function expect(psi::MPS, op1::Matrix{<:Number}, ops::Matrix{<:Number}...; kwargs...)
   return expect(psi, (op1, ops...); kwargs...)
 end
+####################
+# End MPS Algebra operations
+#
+
+####################
+# MPS properties
+#
+"""
+    siteind(M::MPS, j::Int; kwargs...)
+
+Get the first site Index of the MPS. Return `nothing` if none is found.
+"""
+siteind(M::MPS, j::Int; kwargs...) = siteind(first, M, j; kwargs...)
+
+"""
+    siteind(::typeof(only), M::MPS, j::Int; kwargs...)
+
+Get the only site Index of the MPS. Return `nothing` if none is found.
+"""
+function siteind(::typeof(only), M::MPS, j::Int; kwargs...)
+  is = siteinds(M, j; kwargs...)
+  if isempty(is)
+    return nothing
+  end
+  return only(is)
+end
+
+"""
+    siteinds(M::MPS)
+    siteinds(::typeof(first), M::MPS)
+
+Get a vector of the first site Index found on each tensor of the MPS.
+
+    siteinds(::typeof(only), M::MPS)
+
+Get a vector of the only site Index found on each tensor of the MPS. Errors if more than one is found.
+
+    siteinds(::typeof(all), M::MPS)
+
+Get a vector of the all site Indices found on each tensor of the MPS. Returns a Vector of IndexSets.
+"""
+siteinds(M::MPS; kwargs...) = siteinds(first, M; kwargs...)
+
+####################
+# End MPS properties
+#
 
 function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, M::MPS)
   g = create_group(parent, name)

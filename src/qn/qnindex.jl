@@ -1,7 +1,23 @@
 
+###################
+# QNIndex constructors
+#
 const QNBlock = Pair{QN,Int64}
 
 const QNBlocks = Vector{QNBlock}
+
+"""
+A QN Index is an Index with QN block storage instead of
+just an integer dimension. The QN block storage is a
+vector of pairs of QNs and block dimensions.
+The total dimension of a QN Index is the sum of the
+dimensions of the blocks of the Index.
+"""
+const QNIndex = Index{QNBlocks}
+
+###################
+# End QNIndex constructors
+#
 
 qn(qnblock::QNBlock) = qnblock.first
 
@@ -72,15 +88,6 @@ function removeqn(space::QNBlocks, qn_name::String; mergeblocks=true)
   end
   return space
 end
-
-"""
-A QN Index is an Index with QN block storage instead of
-just an integer dimension. The QN block storage is a
-vector of pairs of QNs and block dimensions.
-The total dimension of a QN Index is the sum of the
-dimensions of the blocks of the Index.
-"""
-const QNIndex = Index{QNBlocks}
 
 # Trait for the symmetry type (QN or not QN)
 struct HasQNs <: SymmetryStyle end

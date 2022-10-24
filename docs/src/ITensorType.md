@@ -6,7 +6,9 @@
 ITensor
 ```
 
-## Dense Constructors
+## Constructors
+
+### Dense Constructors
 
 ```@docs
 ITensor(::Type{<:Number}, ::ITensors.Indices)
@@ -17,13 +19,14 @@ randomITensor(::Type{<:Number}, ::ITensors.Indices)
 onehot
 ```
 
-## Dense View Constructors
+### Dense View Constructors
 
 ```@docs
 itensor(::Array{<:Number}, ::ITensors.Indices)
+dense(::ITensor)
 ```
 
-## QN BlockSparse Constructors
+### QN BlockSparse Constructors
 
 ```@docs
 ITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
@@ -31,7 +34,7 @@ ITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Array{<:Number}, ::ITensors.Q
 ITensor(::Type{<:Number}, ::UndefInitializer, ::QN, ::ITensors.Indices)
 ```
 
-## Diagonal constructors
+### Diagonal constructors
 
 ```@docs
 diagITensor(::Type{<:Number}, ::ITensors.Indices)
@@ -40,14 +43,14 @@ diagITensor(::ITensors.AliasStyle, ::Type{<:Number}, ::Number, ::ITensors.Indice
 delta(::Type{<:Number}, ::ITensors.Indices)
 ```
 
-## QN Diagonal constructors
+### QN Diagonal constructors
 
 ```@docs
 diagITensor(::Type{<:Number}, ::QN, ::ITensors.Indices)
 delta(::Type{<:Number}, ::QN, ::ITensors.Indices)
 ```
 
-## Convert to Array
+### Convert to Array
 
 ```@docs
 Array{ElT, N}(::ITensor, ::ITensors.Indices) where {ElT, N}
@@ -59,22 +62,67 @@ matrix(::ITensor)
 vector(::ITensor)
 ```
 
-## Getting and setting elements
-
+### Copy constructors
 ```@docs
-getindex(::ITensor, ::Any...)
-setindex!(::ITensor, ::Number, ::Int...)
+copyto!
 ```
 
 ## Properties
 
 ```@docs
+storage(::ITensor)
+order(::ITensor)
 inds(::ITensor)
 ind(::ITensor, ::Int)
+maxdim(::ITensor)
+mindim(::ITensor)
+dim(::ITensor)
+dim(::ITensor, ::Int)
+dims(::ITensor)
 dir(::ITensor, ::Index)
+ishermitian(::ITensor; kwargs...)
 ```
 
-## [Priming and tagging](@id Priming_and_tagging_ITensor)
+## Iterators
+
+```@docs
+CartesianIndices(::ITensor)
+eachindval(::ITensor)
+iterate(::ITensor, args...)
+eachnzblock(::ITensor)
+eachindex(::ITensor)
+```
+
+## ITensor accessors/mutators
+
+```@docs
+complex(::ITensor)
+scalar(::ITensor)
+fill!(::ITensor, ::Number)
+getindex(::ITensor, ::Any...)
+setindex!(::ITensor, ::Number, ::Int...)
+```
+
+## ITensor index functions
+
+### Collecting/comparing tensor indices
+
+```@docs
+hasinds
+hascommoninds
+commoninds
+commonind
+noncommoninds
+noncommonind
+uniqueinds
+uniqueind
+unioninds
+unionind
+anyhastags
+allhastags
+```
+
+### [Modifying tags and index sets](@id Priming_and_tagging_ITensor)
 
 ```@docs
 prime(::ITensor, ::Any...)
@@ -87,25 +135,6 @@ removetags(::ITensor, ::Any...)
 replacetags(::ITensor, ::Any...)
 settags(::ITensor, ::Any...)
 swaptags(::ITensor, ::Any...)
-```
-
-## Index collections set operations
-
-```@docs
-commoninds
-commonind
-uniqueinds
-uniqueind
-noncommoninds
-noncommonind
-unioninds
-unionind
-hascommoninds
-```
-
-## Index Manipulations
-
-```@docs
 replaceind(::ITensor, ::Any...)
 replaceinds(::ITensor, ::Any...)
 swapind(::ITensor, ::Any...)
@@ -115,23 +144,20 @@ swapinds(::ITensor, ::Any...)
 ## Math operations
 
 ```@docs
+dag(::ITensor; kwargs...)
 *(::ITensor, ::ITensor)
-dag(T::ITensor; kwargs...)
+normalize!(::ITensor)
 exp(::ITensor, ::Any, ::Any)
 nullspace(::ITensor, ::Any...)
+axpy!
+scale!
+mul!
 ```
 
-## Decompositions
-```@docs
-svd(::ITensor, ::Any...)
-eigen(::ITensor, ::Any, ::Any)
-factorize(::ITensor, ::Any...)
-```
-
-## Memory operations
+## Permutations operations
 
 ```@docs
 permute(::ITensor, ::Any)
-dense(::ITensor)
+transpose(::ITensor)
+adjoint(::ITensor)
 ```
-

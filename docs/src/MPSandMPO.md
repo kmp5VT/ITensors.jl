@@ -128,12 +128,6 @@ swapbondsites(::ITensors.AbstractMPS, ::Int; kwargs...)
 truncate!
 ```
 
-## Gate evolution
-
-```@docs
-product(::Vector{ <: ITensor}, ::ITensors.AbstractMPS)
-```
-
 ## Algebra Operations
 
 ```@docs
@@ -149,7 +143,6 @@ norm(::ITensors.AbstractMPS)
 normalize(::ITensors.AbstractMPS)
 normalize!(::ITensors.AbstractMPS)
 lognorm(::ITensors.AbstractMPS)
-+(::MPS, ::MPS)
 contract(::MPO, ::MPS)
 apply(::MPO, ::MPS)
 contract(::MPO, ::MPO)
@@ -158,4 +151,3 @@ error_contract(y::MPS, A::MPO, x::MPS)
 outer(::MPS, ::MPS)
 projector(::MPS)
 ```
-
