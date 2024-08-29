@@ -1,6 +1,6 @@
 using Test
 include("$(@__DIR__)/../ITensorCPD.jl")
-using .ITensorCPD: row_norm, reconstruct
+using .ITensorCPD: als_optimize, direct, random_CPD, row_norm, reconstruct
 using ITensors: Index, ITensor, array, dim, norm, random_itensor
 
 @testset "Norm Row test, elt=$elt" for elt in [Float32, Float64, ComplexF32, ComplexF64]
@@ -54,66 +54,22 @@ end
   @test 1.0 - norm(array(exact - recon)) / norm(exact) ≈ 1.0 rtol = eps(real(elt))
 end
 
-@testset "Standard CPD, elt=$elt" for elt in [Float32, Float64, ComplexF32, ComplexF64]
+## Complex optimization still does not work
+@testset "Standard CPD, elt=$elt" for elt in [Float32, Float64]
 ## Working here
+i,j,k = Index.((20,30,40))
+r = Index(400, "CP_rank")
+A = random_itensor(elt, i,j,k);
+cp_A = random_CPD(A, r);
+
+opt_A = als_optimize(cp_A, r; maxiters=100);
+@test norm(reconstruct(opt_A) - A) / norm(A) < 1e-7
+
+cp_A = random_CPD(A, r; algorithm=direct());
+opt_A = als_optimize(cp_A, r; maxiters=100);
+@test norm(reconstruct(opt_A) - A) / norm(A) < 1e-7
 end
 
-f = 3
-m = similar(cp.factors[f])
-
-factor_portion = cp.factors[1:end .!= f]
-for i in 1:dim(r)
-  array(m)[i,:] = array(A * contract(map(x -> itensor(array(x)[i,:], ind(x, 2)), factor_portion)))
-end
-
-exact = fill!(similar(cp.factors[f]), 0.0)
-for R in 1:dim(r)
-  for I in 1:dim(i)
-    for J in 1:dim(j)
-      for K in 1:dim(k)
-        if f == 1
-          exact[R,I] += A[I,J,K] * cp.factors[2][R,J] * cp.factors[3][R,K]
-        elseif f == 2
-          exact[R,J] += A[I,J,K] * cp.factors[1][R,I] * cp.factors[3][R,K]
-        else
-          exact[R,K] += A[I,J,K] * cp.factors[1][R,I] * cp.factors[2][R,J]
-        end
-      end
-    end
-  end
-end
-array(m) - array(exact)
-
-
-i,j,k = Index.((2,3,4))
-r = Index(5, "CP_rank")
-A = random_itensor(i,j,k)
-cp = random_CPD(A, r)
-
-a = cp.factors .* prime.(cp.factors; tags="CP_rank")
-b = array.(cp.factors) .* transpose.(array.(cp.factors))
-
-array(a[3]) - array(b[3])
-
-i,j,k,l = Index.((20,4,5,6))
-r = Index(40, "rank")
-v = randomITensor(i,j,k,l)
-@btime als_optimize(random_CPD(v, r, ;algorithm = direct()), r; maxiters=100);
-@btime als_optimize(random_CPD(v, r,), r; maxiters=100);
-
-exact = fill!(similar(facs[2]), 0.0)
-for R in 1:dim(r)
-  for I in 1:dim(i)
-    for J in 1:dim(j)
-      for K in 1:dim(k)
-        exact[R,J] += v[I,J,K] * facs[1][R,I] * facs[3][R,K]
-      end
-    end
-  end
-end
-using BenchmarkTools
-@benchmark mttkrp(direct(),cp_v.factors, v, r, 2)
-norm(exact - mkp)
 
 a,b,c,d,e,f,g,h = Index.((3,3,3,3,3,3,3,3), ("a","b","c","d","e","f","g","h"))
 # w,x,y,z = Index.((5,5,5,5), ("w","x","y","z"))
