@@ -1,9 +1,9 @@
 function als_optimize(cp::CPD, rank::Index; maxiters = nothing)
   iter = 0
   maxiters = isnothing(maxiters) ? 1 : maxiters
-  part_grammian = cp.factors .* prime.(cp.factors; tags=tags(rank))
+  part_grammian = cp.factors .* conj(prime.(cp.factors; tags=tags(rank)))
   num_factors = length(cp.factors)
-  #@show norm(cp.target - reconstruct(cp)) / norm(cp.target)
+  @show norm(cp.target - reconstruct(cp)) / norm(cp.target)
   λ = copy(cp.λ)
   factors = copy(cp.factors)
   while iter < maxiters
@@ -21,13 +21,13 @@ function als_optimize(cp::CPD, rank::Index; maxiters = nothing)
       end
       # potentially save the MTTKRP for the loss function
       factors[fact], λ = row_norm(itensor(array(grammian) \ array(m), inds(m)), ind(m, 2))
-      part_grammian[fact] = factors[fact] * prime(factors[fact]; tags=tags(rank))
+      part_grammian[fact] = factors[fact] * conj(prime(factors[fact]; tags=tags(rank)))
     end
-    #@show norm(cp.target - reconstruct(factors, λ)) / norm(cp.target)
     if check_converge()
       break
     end
     iter += 1
   end
-  return CPD(cp.target, factors, λ)
+  @show norm(cp.target - reconstruct(factors, λ)) / norm(cp.target)
+  return CPD(cp.target, factors, λ, cp.mttkrp_alg)
 end
