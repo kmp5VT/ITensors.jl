@@ -9,12 +9,10 @@ function als_optimize(cp::CPD, rank::Index, converge)
   λ = copy(cp.λ)
   factors = copy(cp.factors)
   while iter ≤ converge.max_counter
+    mtkrp = nothing
     for fact in 1:num_factors
       ## compute the matrized tensor time khatri rao product with a provided algorithm.
-      m = mttkrp(cp.mttkrp_alg, factors, cp, rank, fact)
-
-      # potentially save the MTTKRP for the loss function
-      save_mttkrp(converge, m)
+      mtkrp = mttkrp(cp.mttkrp_alg, factors, cp, rank, fact)
 
       ## compute the grammian which requires the hadamard product
       grammian = similar(part_grammian[1])
@@ -27,11 +25,14 @@ function als_optimize(cp::CPD, rank::Index, converge)
       end
 
       ## potentially better to first inverse the grammian then contract
-      factors[fact], λ = row_norm(itensor(array(grammian) \ array(m), inds(m)), ind(m, 2))
+      factors[fact], λ = row_norm(itensor(array(grammian) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2))
       part_grammian[fact] = factors[fact] * prime(factors[fact]; tags=tags(rank))
 
       post_solve(cp.mttkrp_alg, factors, λ, cp, rank, fact)
     end
+    
+    # potentially save the MTTKRP for the loss function
+    save_mttkrp(converge, mtkrp)
 
     if check_converge(converge, factors, λ, part_grammian)
       break
