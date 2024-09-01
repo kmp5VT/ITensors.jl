@@ -79,21 +79,22 @@ opt_A = als_optimize(cp_A, r, check);
 @test norm(reconstruct(opt_A) - A) / norm(A) ≤ 1.0 - ITensorCPD.fit(check)
 end
 
+@testset "Lattice CPD, elt=$elt" for elt in [Float32, Float64]
+  a,b,c,d,e,f,g,h = Index.((5,5,5,5,5,5,5,5), ("a","b","c","d","e","f","g","h"));
+  w,x,y,z = Index.((5,5,5,5), ("w","x","y","z"));
+  square = [random_itensor(elt, a,b,x,w), random_itensor(elt, c,d,x,z), random_itensor(elt, g,h,z,y), random_itensor(elt, e,f,y,w)];
+  r = Index(2000,"CP_rank")
+  CP = random_CPD_square_network(square, r);
+  ## TODO write better code to take norm of square lattice
+  check = ITensorCPD.FitCheck(1e-3, 30, sqrt((contract(square) * contract(square))[]))
+  opt_A = ITensorCPD.als_optimize(CP, r, check);
+  norm(ITensorCPD.reconstruct(opt_A) - contract(square)) / sqrt((contract(square) * contract(square))[]) ≈ 1.0 - ITensorCPD.fit(check)
 
-## TODO right now the optimizer works but the 2norm fit is calculated incorrectly for a tensor-network.
-a,b,c,d,e,f,g,h = Index.((3,3,3,3,3,3,3,3), ("a","b","c","d","e","f","g","h"));
-w,x,y,z = Index.((5,5,5,5), ("w","x","y","z"));
-square = [random_itensor(a,b,x,w), random_itensor(c,d,x,z), random_itensor(g,h,z,y), random_itensor(e,f,y,w)];
-r = Index(700,"CP_rank")
-CP = random_CPD_square_network(square, r);
-check = ITensorCPD.FitCheck(1e-10, 100, norm(square))
-opt_A = ITensorCPD.als_optimize(CP, r, check);
-norm(ITensorCPD.reconstruct(opt_A) - contract(square)) / norm(square)
+  line = [random_itensor(elt, a,b,x), random_itensor(elt, c,d,x)];
+  r = Index(40,"CP_rank")
+  CP = random_CPD_square_network(line, r);
+  check = ITensorCPD.FitCheck(1e-10, 100, sqrt((contract(line) * contract(line))[]))
 
-line = [random_itensor(a,b,x), random_itensor(c,d,x)];
-r = Index(20,"CP_rank")
-CP = random_CPD_square_network(line, r);
-check = ITensorCPD.FitCheck(1e-10, 100, norm(line))
-
-opt_A = ITensorCPD.als_optimize(CP, r, check);
-norm(ITensorCPD.reconstruct(opt_A) - contract(line)) / norm(line)
+  opt_A = ITensorCPD.als_optimize(CP, r, check);
+  norm(ITensorCPD.reconstruct(opt_A) - contract(line)) / norm(line) ≤ ITensorCPD.fit(check)
+end
