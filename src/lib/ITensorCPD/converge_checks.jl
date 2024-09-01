@@ -36,7 +36,7 @@ end
 
 save_mttkrp(fit::FitCheck, mttkrp::ITensor) = fit.MttKRP = mttkrp
 
-function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = true)
+function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = false)
   check.iter += 1
   rank = ind(partial_gram[1], 1)
   inner_prod = 0
@@ -65,6 +65,14 @@ function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = tr
   else
     check.counter = 0
   end
+
+  if check.iter == check.max_counter
+    check.iter = 0
+      check.counter = 0
+      check.final_fit = check.fit
+      check.fit = 0
+  end
+
   return false
 end
 
@@ -75,3 +83,5 @@ function norm_factors(partial_gram::Vector, λ::ITensor)
   end
   return (had * (λ * prime(λ)))[]
 end
+
+fit(fit::FitCheck) = fit.final_fit

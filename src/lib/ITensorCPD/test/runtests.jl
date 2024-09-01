@@ -1,6 +1,6 @@
 using Test
 include("$(@__DIR__)/../ITensorCPD.jl")
-using .ITensorCPD: als_optimize, direct, random_CPD, row_norm, reconstruct
+using .ITensorCPD: als_optimize, direct, random_CPD, random_CPD_square_network, row_norm, reconstruct
 using ITensors: Index, ITensor, array, dim, norm, random_itensor
 
 @testset "Norm Row test, elt=$elt" for elt in [Float32, Float64, ComplexF32, ComplexF64]
@@ -65,50 +65,35 @@ cp_A = random_CPD(A, r);
 opt_A = als_optimize(cp_A, r; maxiters=100);
 @test norm(reconstruct(opt_A) - A) / norm(A) < 1e-7
 
+check = ITensorCPD.FitCheck(1e-15, 100, norm(A))
+opt_A = als_optimize(cp_A, r, check);
+@test norm(reconstruct(opt_A) - A) / norm(A) ≤ 1.0 - ITensorCPD.fit(check)
+
 cp_A = random_CPD(A, r; algorithm=direct());
 opt_A = als_optimize(cp_A, r; maxiters=100);
 @test norm(reconstruct(opt_A) - A) / norm(A) < 1e-7
+
+check = ITensorCPD.FitCheck(1e-15, 100, norm(A))
+cp_A = random_CPD(A, r; algorithm=direct());
+opt_A = als_optimize(cp_A, r, check);
+@test norm(reconstruct(opt_A) - A) / norm(A) ≤ 1.0 - ITensorCPD.fit(check)
 end
 
 
-a,b,c,d,e,f,g,h = Index.((3,3,3,3,3,3,3,3), ("a","b","c","d","e","f","g","h"))
-# w,x,y,z = Index.((5,5,5,5), ("w","x","y","z"))
-# square = [random_itensor(a,b,x,w), random_itensor(c,d,x,z), random_itensor(g,h,z,y), random_itensor(e,f,y,w)]
-# r = Index(2,"rank")
-# CP = random_CPD_square_network(square, r)
+## TODO right now the optimizer works but the 2norm fit is calculated incorrectly for a tensor-network.
+a,b,c,d,e,f,g,h = Index.((3,3,3,3,3,3,3,3), ("a","b","c","d","e","f","g","h"));
+w,x,y,z = Index.((5,5,5,5), ("w","x","y","z"));
+square = [random_itensor(a,b,x,w), random_itensor(c,d,x,z), random_itensor(g,h,z,y), random_itensor(e,f,y,w)];
+r = Index(700,"CP_rank")
+CP = random_CPD_square_network(square, r);
+check = ITensorCPD.FitCheck(1e-10, 100, norm(square))
+opt_A = ITensorCPD.als_optimize(CP, r, check);
+norm(ITensorCPD.reconstruct(opt_A) - contract(square)) / norm(square)
 
+line = [random_itensor(a,b,x), random_itensor(c,d,x)];
+r = Index(20,"CP_rank")
+CP = random_CPD_square_network(line, r);
+check = ITensorCPD.FitCheck(1e-10, 100, norm(line))
 
-# facs = cp_v.factors
-# p = fill!(Array{Float64}(undef, 2,3,3), 1.0)
-# m = itensor(similar(p), r,j,k)
-# for i in 1:2
-#   for j in 1:3
-#     for k in 1:3
-#       p[i,j,k] = array(facs[2])[i,j] * array(facs[3])[i,k]
-#     end
-#   end
-# end
-# factor_portion = facs[1:end .!= 1]
-
-# v = random_itensor(i,j)
-# U,S,V = svd(v, i)
-# reconstruct(CPD(v, permute!.([tensor(U),tensor(V)], (2,1)), S))
-
-# for i in 1:dim(r)
-#   array(m)[i,:,:] = array(contract(map(x -> itensor(array(x)[i,:], ind(x, 2)), factor_portion)))
-# end
-# # delta(r) * 
-
-# fill!(Array{Float64}(undef, 2,1,1), 1.0)
-
-
-# sum((v.tensor ./ (sqrt.(itensor(tensor(v.tensor .* v.tensor)) * delta(i)) * delta(i)).tensor)[1,:])
-
-# c = random_CPD(v, r)
-
-# n = itensor(c.factors[1].tensor .* c.factors[1].tensor, inds(c[1]))
-# m = n * ITensor(one(Float64), i)
-
-# norm(p)
-# CP.factors
-
+opt_A = ITensorCPD.als_optimize(CP, r, check);
+norm(ITensorCPD.reconstruct(opt_A) - contract(line)) / norm(line)
