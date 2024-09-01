@@ -5,7 +5,7 @@ abstract type MttkrpAlgorithm end
 struct KRP<:MttkrpAlgorithm
 end
 
-function post_solve(::MttkrpAlgorithm, factors, λ, cp::CPD, rank::Index, fact::Integer)
+function post_solve(::MttkrpAlgorithm, factors, λ, cp, rank::Index, fact::Integer)
 end
 
 ## This version assumes we have the exact target and can form the tensor
@@ -87,7 +87,7 @@ function mttkrp(::square_lattice, factors, cp, rank::Index, fact::Int)
   return m
 end
 
-function post_solve(::square_lattice, factors, λ, cp::CPD, rank::Index, fact::Integer)
+function post_solve(::square_lattice, factors, λ, cp, rank::Index, fact::Integer)
   ## Once done with 2 factor, multiply the two into the target and set in the partial_mtkrp list
   if iseven(fact)
     effective_fact = fact ÷ 2
