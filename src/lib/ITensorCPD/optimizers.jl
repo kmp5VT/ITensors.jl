@@ -8,7 +8,7 @@ function als_optimize(cp::CPD, rank::Index, converge)
   num_factors = length(cp.factors)
   λ = copy(cp.λ)
   factors = copy(cp.factors)
-  while iter ≤ converge.max_counter
+  while iter < converge.max_counter
     mtkrp = nothing
     for fact in 1:num_factors
       ## compute the matrized tensor time khatri rao product with a provided algorithm.
