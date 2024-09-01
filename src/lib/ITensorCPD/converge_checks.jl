@@ -1,4 +1,5 @@
-using ITensors: hadamard_product!
+using ITensors: diag_itensor, hadamard_product!
+using ITensors.NDTensors: tensor
 abstract type ConvergeAlg end
 
 mutable struct NoCheck <: ConvergeAlg
@@ -9,7 +10,7 @@ mutable struct NoCheck <: ConvergeAlg
   NoCheck(max) = new(0, max, -1)
 end
 
-function check_converge(check::NoCheck, ::CPD, partial_gram)
+function check_converge(check::NoCheck,  factors, λ, partial_gram)
   if check.counter ≥ check.max_counter
     return true
   end
@@ -35,12 +36,14 @@ end
 
 save_mttkrp(fit::FitCheck, mttkrp::ITensor) = fit.MttKRP = mttkrp
 
-function check_converge(check::FitCheck, cp::CPD, partial_gram; verbose = true)
+function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = true)
   check.iter += 1
-  rank = ind(cp.λ, 1)
-  # inner_prod = (check.MttKRP * conj(prime(cp.factors[end]; tags=tags(rank))) * (cp.λ * δ(rank')))[]
-  inner_prod = sum(hadamard_product(check.MttKRP, cp.factors[end]) * cp.λ)
-  fact_square = norm_factors(partial_gram, cp.λ)
+  rank = ind(partial_gram[1], 1)
+  inner_prod = 0
+  for R in 1:dim(rank)
+    inner_prod += sum(tensor(check.MttKRP)[R,:] .* (tensor(factors[end])[R,:] .* λ[R]))
+  end
+  fact_square = norm_factors(partial_gram, λ)
   normResidual = sqrt(abs(check.ref_norm * check.ref_norm + fact_square - 2 * abs(inner_prod)));
   curr_fit = 1. - (normResidual / check.ref_norm);
   Δfit = abs(check.fit - curr_fit)
