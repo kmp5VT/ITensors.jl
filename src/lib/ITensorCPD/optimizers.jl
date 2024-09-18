@@ -25,7 +25,8 @@ function als_optimize(cp::CPD, rank::Index, converge)
       end
 
       ## potentially better to first inverse the grammian then contract
-      factors[fact], λ = row_norm(itensor(array(grammian) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2))
+      ## qr(A, Val(true))
+      factors[fact], λ = row_norm(itensor(qr(array(grammian)) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2))
       part_grammian[fact] = factors[fact] * prime(factors[fact]; tags=tags(rank))
 
       post_solve(cp.mttkrp_alg, factors, λ, cp, rank, fact)
