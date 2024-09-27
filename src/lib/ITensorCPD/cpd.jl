@@ -17,6 +17,8 @@ CPD(target, factors, lambda, mttkrp_alg) = CPD(target, factors, lambda, mttkrp_a
 
 factors(cp::CPD) = getproperty(cp, :factors)
 mttkrp_algorithm(cp::CPD) = getproperty(cp, :mttkrp_alg)
+Base.getindex(cp::CPD, i) = cp.factors[i]
+Base.getindex(cp::CPD) = cp.λ
 
 Base.eltype(cp::CPD) = return eltype(cp.λ)
 
