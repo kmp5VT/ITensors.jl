@@ -192,7 +192,6 @@ end
     replaceinds!(ntn[i], cis, nis)
     cis = inds(tn[1])
     nis = [i ∈ is ? i' : i for i in cis]
-    @show nis
     replaceinds!(ntn[1], cis, nis)
     return ntn
   end
@@ -202,46 +201,267 @@ using ITensorNetworks.NamedGraphs
 using ITensorNetworks.NamedGraphs.GraphsExtensions: subgraph
 using ITensorNetworks.NamedGraphs.NamedGraphGenerators: named_grid
 
-nx = 7
-ny = 7
+nx = 5
+ny = 6
 
-beta = 0.1
-h = 1.0
-tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h)
+beta = 1.0
+h = 0.0
 
-# s = subgraph(g, (
-#   (1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), 
-#   (2,10), (3,10), (4,10), (5,10), (6,10), (7,10), (8,10), (9,10), (10, 10), 
-#   (10, 9), (10,8), (10,7), (10,6), (10,5), (10,4), (10,3), (10, 2), (10,1), 
-#   (9,1), (8,1), (7,1), (6,1), (5,1), (4,1), (3,1), (2,1)));
+vals = [0.0, 0.0]
+r = Index(1, "CP_rank")
+for i in 1:2
+  if i == 1
+    tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h)
+  else 
+    tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(3,3),(3,4)])
+  end
+  s1 = subgraph(tn, ((2,2), (2,3), (2,4), (2,5),
+                      (3,5), (4,5),
+                      (4,4), (4,3), (4,2), 
+                      (3,2)))
 
-# s = subgraph(tn, (
-# (2,2), (2,3), (2,4), (2,5), (2,6), (2,7), (2,8), (2,9), 
-# (3,9), (4,9), (5,9), (6,9), (7,9), (8,9), (9,9), 
-# (9,8), (9,7), (9,6), (9,5), (9,4), (9,3), (9, 2), 
-# (8,2), (7,2), (6,2), (5,2), (4,2), (3,2)
-# ));
-# s = subgraph(tn, ((2,2), (2,3), 
-#                   (3,3), (3,2)))
-s1 = subgraph(tn, ((2,2), (2,3), (2,4),(2,5), (2,6),
-                  (3,6), (4,6), (5,6), (6,6),
-                  (6,5), (6,4), (6,3), (6,2),
-                  (5,2), (4,2), (3,2)))
-s2 = subgraph(tn, ((3,3), (3,4), (3,5),
-                  (4,5), (5,5),
-                  (5,4), (5,3),
-                  (4,3)))
+              
+  sising = s1.data_graph.vertex_data.values ;
+  sisingp = replace_inner_w_prime_loop(sising);
 
-sising = s1.data_graph.vertex_data.values ;
-sisingp = replace_inner_w_prime_loop(sising);
+  sqrs = sising[1] * sisingp[1]
+  for i in 2:length(sising)
+      sqrs = sqrs * sising[i] * sisingp[i]
+  end
+  sqrt(sqrs[])
 
-sqrs = sising[1] * sisingp[1]
-for i in 2:length(sising)
-    sqrs = sqrs * sising[i] * sisingp[i]
+  fit = ITensorCPD.FitCheck(1e-10, 100, sqrt(sqrs[]));
+  cp = ITensorCPD.random_CPD_square_network(sising, r);
+  cpopt = ITensorCPD.als_optimize(cp, r, fit);       
+  core = [cpopt[4], cpopt[15], cpopt[20], cpopt[6], cpopt[9], cpopt[13]];
+
+  es = [ cpopt[2] * tn[1,1] * tn[1,2],
+  cpopt[3] * tn[1,3],
+  cpopt[5] * tn[1,4],
+  cpopt[7] * tn[1,5] * tn[1,6],
+  cpopt[8] * tn[2,6],
+  cpopt[10] * tn[3,6] ,
+  cpopt[12] * tn[4,6]  * tn[5,6],
+  cpopt[11] * tn[5,5] ,
+  cpopt[14] * tn[5,4] ,
+  cpopt[16] * tn[5,3] ,
+  cpopt[18] * tn[5,2] * tn[5,1], 
+  cpopt[17] * tn[4,1] ,
+  cpopt[19] * tn[3,1] ,
+  cpopt[1] * tn[2,1]];
+
+  is = ind.(core, 2)
+  c = ITensor(Float64, is);
+  for i in 1:dim(r)
+    l = contract([itensor(array(x)[i,:,:], inds(x)[2:end]) for x in es])[] * cpopt[][i]
+    c += l * contract([itensor(array(x)[i,:], ind(x,2)) for x in core])
+  end
+# (c * tn[3,3] * tn[3,4])[]
+# (c * tn[3,3] * tn[3,4])[]
+  vals[i] = (c * tn[3,3] * tn[3,4])[]
 end
-sqrt(sqrs[])
+cp = vals[2] / vals[1]
 
-fit = ITensorCPD.FitCheck(1e-15, 100, sqrt(sqrs[]));
-r = Index(20, "CP_rank")
-cp = ITensorCPD.random_CPD_square_network(sising, r);
-cpopt = ITensorCPD.als_optimize(cp, r, fit);
+# cp = 4.3732548624393e10 / 8.3001368444895e10
+
+tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h);
+tnO = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(3,3),(3,4)]);
+
+using OMEinsumContractionOrders: OMEinsumContractionOrders
+using ITensorNetworks: contraction_sequence
+seq = contraction_sequence(tn; alg = "sa_bipartite");
+szsz = contract(tnO; sequence = seq)[] /  contract(tn; sequence = seq)[]
+szsz - cp
+
+szsz_bp = scalar(tnO; alg = "bp") /  scalar(tn; alg = "bp")
+szsz - szsz_bp
+
+##############################################
+nx = 7
+ny = 8
+
+beta = 1.0
+h = 0.0
+
+vals = [0.0, 0.0]
+cp_szsz = Vector{Vector{Float64}}([])
+ranks = [1,5,10,15]
+h = 0
+for rank in 1:length(ranks)
+  push!(cp_szsz, Vector{Float64}(undef, 0))
+  r1 = Index(ranks[rank], "CP_rank")
+  r2 = Index(ranks[rank], "CP_rank")
+for beta in [1.0 - i for i in 0:0.01:1]
+  for i in 1:2
+  if i == 1
+      tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h)
+  else 
+      tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(4,4),(4,5)])
+  end
+  #if isnothing(env)
+    s1 = subgraph(tn, ((2,2), (2,3), (2,4), (2,5), (2,6), (2,7),
+                      (3,7), (4,7), (5,7), (6,7),
+                      (6,6), (6,5), (6,4),(6,3),(6,2), 
+                      (5,2), (4,2), (3,2)));
+            
+    sising = s1.data_graph.vertex_data.values ;
+    sisingp = replace_inner_w_prime_loop(sising);
+
+    sqrs = sising[1] * sisingp[1]
+    for i in 2:length(sising)
+      sqrs = sqrs * sising[i] * sisingp[i]
+    end
+    sqrt(sqrs[])
+
+    fit = ITensorCPD.FitCheck(1e-3, 6, sqrt(sqrs[]));
+    cp = ITensorCPD.random_CPD_square_network(sising, r1);
+    cpopt = ITensorCPD.als_optimize(cp, r1, fit);    
+    ## contract s1 with outer layer   
+    core = [cpopt[4], cpopt[6], cpopt[8], cpopt[10], cpopt[13], 
+          cpopt[15], cpopt[17],cpopt[21], cpopt[23], cpopt[25], cpopt[27], cpopt[32], cpopt[34], cpopt[36]];
+
+    es = [ 
+      cpopt[2] * tn[1,2] * tn[1,1]
+      cpopt[3] * tn[1,3]
+      cpopt[5] * tn[1,4]
+      cpopt[7] * tn[1,5]
+      cpopt[9] * tn[1,6]
+      cpopt[11] * tn[1,7] * tn[1,8]
+      cpopt[12] * tn[2,8]
+      cpopt[14] * tn[3,8]
+      cpopt[16] * tn[4,8]
+      cpopt[18] * tn[5,8]
+      cpopt[20] * tn[6,8] * tn[7,8]
+      cpopt[19] * tn[7,7]
+      cpopt[22] * tn[7,6]
+      cpopt[24] * tn[7,5]
+      cpopt[26] * tn[7,4]
+      cpopt[28] * tn[7,3]
+      cpopt[30] * tn[7,2] * tn[7,1]
+      cpopt[29] * tn[6,1]
+      cpopt[31] * tn[5,1]
+      cpopt[33] * tn[4,1]
+      cpopt[35] * tn[3,1]
+      cpopt[1] * tn[2,1]
+    ];
+
+    v = Vector{Float64}(undef, dim(r1))
+    for i in 1:dim(r1)
+    v[i] = contract([itensor(array(x)[i,:,:], inds(x)[2:end]) for x in es])[] * cpopt[][i]
+    end
+    v = itensor(v, r1)
+
+    s2 = subgraph(tn, ((3,3), (3,4), (3,5), (3,6), 
+                      (4,6), (5,6), 
+                      (5,5), (5,4), (5,3),
+                      (4,3)))
+
+    sising = s2.data_graph.vertex_data.values ;
+    sisingp = replace_inner_w_prime_loop(sising);
+
+    sqrs = sising[1] * sisingp[1]
+    for i in 2:length(sising)
+      sqrs = sqrs * sising[i] * sisingp[i]
+    end
+    sqrt(sqrs[])
+
+    fit = ITensorCPD.FitCheck(1e-3, 10, sqrt(sqrs[]));
+    cp = ITensorCPD.random_CPD_square_network(sising, r2);
+    cpopt = ITensorCPD.als_optimize(cp, r2, fit);
+
+    es = [
+    cpopt[2] * core[1]
+    cpopt[3] * core[2]
+    cpopt[5] * core[3]
+    cpopt[7] * core[4]
+    cpopt[8] * core[5]
+    cpopt[10] * core[6]
+    cpopt[11] * core[8]
+    cpopt[12] * core[7]
+    cpopt[14] * core[9]
+    cpopt[16] * core[10]
+    cpopt[17] * core[12]
+    cpopt[18] * core[11]
+    cpopt[19] * core[13]
+    cpopt[1] * core[14]
+    ];
+
+    core = [cpopt[4], cpopt[6], cpopt[9], cpopt[13], cpopt[15], cpopt[20]];
+
+    had = copy(es[1])
+    for j in 2:length(es)
+    had = ITensors.hadamard_product(had, es[j])
+    end
+
+    is = ind.(core, 2)
+    #env = ITensor(Float64, is);
+    l = had * v
+    val = 0
+    for i in 1:dim(r2)
+    #env += cpopt[][i] * l[i] * contract([itensor(array(x)[i,:], ind(x,2)) for x in core])
+    val +=  (cpopt[][i] * (l[i] * contract([itensor(array(x)[i,:], ind(x,2)) for x in core])) * tn[4,4] * tn[4,5])[]
+    end
+    vals[i] = val
+  #end
+    #env = itensor(ITensors.NDTensors.data(env), noncommoninds(tn[4,4], tn[4,5]))
+    #vals[i] = (env * tn[4,4] * tn[4,5])[]
+  end
+  cp = vals[2] / vals[1]
+  push!(cp_szsz[rank], cp)
+end
+end
+
+betas = [ 1.0 - i for i in 0:0.01:1]
+# cp = 4.3732548624393e10 / 8.3001368444895e10
+
+full_szsz = Vector{Float64}([])
+bp_szsz = Vector{Float64}([])
+using ITensorNetworks: BeliefPropagationCache, update, environment
+for beta in betas
+  tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h);
+  tnO = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(4,4),(4,5)]);
+
+  using OMEinsumContractionOrders: OMEinsumContractionOrders
+  using ITensorNetworks: contraction_sequence
+  seq = contraction_sequence(tn; alg = "sa_bipartite");
+  szsz = @time contract(tnO; sequence = seq)[] /  contract(tn; sequence = seq)[]
+  push!(full_szsz, szsz)
+
+  vs_centre = [(4,4),(4,5)]
+  s = IndsNetwork(named_grid((nx, ny)); link_space=2)
+  tn = ising_network(Float64, s, beta; h);
+  tnO = ising_network(Float64, s, beta; h, szverts=vs_centre);
+  tn_bpc = BeliefPropagationCache(tn)
+  tn_bpc = update(tn_bpc; maxiter = 50)
+  envs = environment(tn_bpc, vs_centre)
+
+  numer = contract([[tn[v] for v in vs_centre]; envs], sequence = "automatic")
+  denom = contract([[tnO[v] for v in vs_centre]; envs], sequence = "automatic")
+
+  szsz_bp_vbetter = denom[] / numer[]
+  push!(bp_szsz, szsz_bp_vbetter)
+end
+inf = 0.5530853552926374
+szsz - inf
+
+using Plots
+plot(betas, full_szsz, label="Exact Contraction")
+plot!(betas, bp_szsz, label="BP Contraction")
+plot!(betas, cp_szsz[1], label="CP rank 1")
+plot!(betas, cp_szsz[2], label="CP rank 5")
+plot!(betas, cp_szsz[3], label="CP rank 10")
+plot!(betas, cp_szsz[4], label="CP rank 15")
+plot!(xlabel="Inverse Temparature",ylabel="SZ Correlation")
+savefig("../CP_ising_2site.pdf")
+
+plot(betas, abs.(full_szsz .- cp_szsz[1]) ./ full_szsz.*100, label="CP rank 1")
+plot!(betas, abs.(full_szsz .- cp_szsz[2]) ./ full_szsz.*100, label="CP rank 5")
+plot!(betas, abs.(full_szsz .- cp_szsz[3])./full_szsz.*100, label="CP rank 10")
+plot!(betas, abs.(full_szsz .- cp_szsz[4])./full_szsz .* 100, label="CP rank 15")
+plot!(betas, abs.(full_szsz .- bp_szsz)./full_szsz .* 100, label="BP")
+plot!(xlabel="Inverse Temparature",ylabel="SZ Correlation error")
+savefig("../CP_ising_2site_error.pdf")
+
+
+szsz - szsz_bp
+cp - szsz_bp
