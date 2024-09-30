@@ -36,7 +36,7 @@ end
 
 save_mttkrp(fit::FitCheck, mttkrp::ITensor) = fit.MttKRP = mttkrp
 
-function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = true)
+function check_converge(check::FitCheck, factors, λ, partial_gram; verbose = false)
   check.iter += 1
   rank = ind(partial_gram[1], 1)
   inner_prod = 0
