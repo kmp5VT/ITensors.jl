@@ -1,6 +1,6 @@
 using ITensors: ITensor
 function reconstruct(cp::CPD)
-  reconstruct(cp.factors, cp.λ)
+  return reconstruct(cp.factors, cp.λ)
 end
 
 function reconstruct(factors::Vector{<:ITensor}, λ)
@@ -13,16 +13,10 @@ function reconstruct(factors::Vector{<:ITensor}, λ)
   ## vectors together.
   ## starting with the first rank value, its cheaper to do this
   ## than to form an empty tensor.
-  its = map(
-    x -> itensor(array(x)[1,:], inds(x)[2]),
-    facs
-  )
+  its = map(x -> itensor(array(x)[1, :], inds(x)[2]), facs)
   it = contract(its)
   for r in 2:dim(facs[1], 1)
-    it .+= contract(map(
-      x -> itensor(array(x)[r,:], ind(x, 2)),
-      facs
-    ))
+    it .+= contract(map(x -> itensor(array(x)[r, :], ind(x, 2)), facs))
   end
   return it
 end

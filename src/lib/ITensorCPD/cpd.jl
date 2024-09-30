@@ -13,7 +13,9 @@ struct CPD
 end
 
 CPD(target, factors, λ) = CPD(target, factors, λ, direct())
-CPD(target, factors, lambda, mttkrp_alg) = CPD(target, factors, lambda, mttkrp_alg, Dict(()))
+function CPD(target, factors, lambda, mttkrp_alg)
+  return CPD(target, factors, lambda, mttkrp_alg, Dict(()))
+end
 
 factors(cp::CPD) = getproperty(cp, :factors)
 mttkrp_algorithm(cp::CPD) = getproperty(cp, :mttkrp_alg)
@@ -24,8 +26,8 @@ Base.eltype(cp::CPD) = return eltype(cp.λ)
 
 ## Right now this only works for a single itensor.
 ## However, it should be possible to make it for a arbitrary tensor network.
-function random_CPD(target::ITensor, rank::Index; algorithm = nothing, rng=nothing)
-  rng = isnothing(rng) ? MersenneTwister(3) : rng;
+function random_CPD(target::ITensor, rank::Index; algorithm=nothing, rng=nothing)
+  rng = isnothing(rng) ? MersenneTwister(3) : rng
   elt = eltype(target)
   cp = Vector{ITensor}([])
   l = nothing
@@ -47,8 +49,8 @@ end
 ## e-4 --- 3 - h
 ##   |  y  | 
 ##   f     g
-function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng = nothing)
-  rng = isnothing(rng) ? MersenneTwister(3) : rng;
+function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng=nothing)
+  rng = isnothing(rng) ? MersenneTwister(3) : rng
   elt = eltype(target[1])
   cp = Vector{ITensor}([])
   partial_mtkrp = similar(cp)
@@ -65,7 +67,10 @@ function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng = n
   ## could optimize by making reference to list?
   mtkrp = typeof(target[1])(elt, rank, nis)
   for i in 1:dim(rank)
-    mtkrp[i,:,:] = data(itensor(array(cp[2])[i,:], ind(cp[2], 2)) * (itensor(array(cp[1])[i,:], ind(cp[1], 2)) * target[1]))
+    mtkrp[i, :, :] = data(
+      itensor(array(cp[2])[i, :], ind(cp[2], 2)) *
+      (itensor(array(cp[1])[i, :], ind(cp[1], 2)) * target[1]),
+    )
   end
   push!(partial_mtkrp, mtkrp)
 
@@ -79,7 +84,10 @@ function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng = n
     mtkrp = typeof(target[ten])(elt, rank, nis)
     val = 2 * ten
     for i in 1:dim(rank)
-      mtkrp[i,:,:] = data(itensor(array(cp[val])[i,:], ind(cp[val], 2)) * (itensor(array(cp[val - 1])[i,:], ind(cp[val - 1], 2)) * target[ten]))
+      mtkrp[i, :, :] = data(
+        itensor(array(cp[val])[i, :], ind(cp[val], 2)) *
+        (itensor(array(cp[val - 1])[i, :], ind(cp[val - 1], 2)) * target[ten]),
+      )
     end
     push!(partial_mtkrp, mtkrp)
   end
@@ -94,9 +102,12 @@ function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng = n
   mtkrp = typeof(target[num_tensors])(elt, rank, nis)
   val = 2 * num_tensors
   for i in 1:dim(rank)
-    mtkrp[i,:,:] = data(itensor(array(cp[val])[i,:], ind(cp[val], 2)) * (itensor(array(cp[val-1])[i,:], ind(cp[val-1], 2)) * target[num_tensors]))
+    mtkrp[i, :, :] = data(
+      itensor(array(cp[val])[i, :], ind(cp[val], 2)) *
+      (itensor(array(cp[val - 1])[i, :], ind(cp[val - 1], 2)) * target[num_tensors]),
+    )
   end
   push!(partial_mtkrp, mtkrp)
 
-  return CPD(target, cp, l, square_lattice(), Dict(:partial_mtkrp=>partial_mtkrp))
+  return CPD(target, cp, l, square_lattice(), Dict(:partial_mtkrp => partial_mtkrp))
 end

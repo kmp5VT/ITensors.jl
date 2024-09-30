@@ -1,4 +1,4 @@
-function als_optimize(cp::CPD, rank::Index; maxiters = 1, kwargs...)
+function als_optimize(cp::CPD, rank::Index; maxiters=1, kwargs...)
   return als_optimize(cp, rank, NoCheck(maxiters); kwargs...)
 end
 
@@ -26,12 +26,14 @@ function als_optimize(cp::CPD, rank::Index, converge)
 
       ## potentially better to first inverse the grammian then contract
       ## qr(A, Val(true))
-      factors[fact], λ = row_norm(itensor(qr(array(grammian), Val(true)) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2))
+      factors[fact], λ = row_norm(
+        itensor(qr(array(grammian), Val(true)) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2)
+      )
       part_grammian[fact] = factors[fact] * prime(factors[fact]; tags=tags(rank))
 
       post_solve(cp.mttkrp_alg, factors, λ, cp, rank, fact)
     end
-    
+
     # potentially save the MTTKRP for the loss function
     save_mttkrp(converge, mtkrp)
 
@@ -39,9 +41,7 @@ function als_optimize(cp::CPD, rank::Index, converge)
       break
     end
     iter += 1
-    
   end
 
   return CPD(cp.target, factors, λ, cp.mttkrp_alg, cp.additional_items)
 end
-
