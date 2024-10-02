@@ -1,7 +1,7 @@
 using ITensors: ITensor, Index
 function had_contract(A::ITensor, B::ITensor, had::Index; α=true)
   if had ∉ commoninds(A, B)
-    return α .* A * B
+    return α .* (A * B)
   else
     position_of_had_A = findall(x -> x == had, inds(A))[]
     position_of_had_B = findall(x -> x == had, inds(B))[]

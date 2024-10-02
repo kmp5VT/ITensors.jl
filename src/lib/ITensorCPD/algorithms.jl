@@ -100,3 +100,41 @@ function post_solve(::square_lattice, factors, λ, cp, rank::Index, fact::Intege
 end
 
 struct network_solver <: MttkrpAlgorithm end
+
+function mttkrp(::network_solver, factors, cp, rank::Index, fact::Int)
+  m = similar(factors[fact])
+
+  target_index = ind(factors[fact],2)
+  target_vert = cp.additional_items[:ext_ind_to_vertex][target_index]
+  p = copy(cp.target[target_vert])
+  for x in uniqueinds(cp.target, target_vert) 
+    if x == target_index
+      continue
+    end
+    # p = had_contract(factors[cp.additional_items[:ext_ind_to_factor][x]], p)
+    factor_ind = cp.additional_items[:ext_ind_to_factor][x]
+    p = had_contract(factors[factor_ind], p, rank)
+  end
+  
+  ## Next I need to figure out which partial hadamard_product to skip
+  env_list = [cp.additional_items[:partial_mtkrp][1:end .!= cp.additional_items[:factor_to_part_cont][fact]]...]
+  for x in env_list
+    p = had_contract(x, p, rank)
+  end
+  return p
+end
+
+function post_solve(::network_solver, factors, λ, cp, rank::Index, fact::Integer)
+  ## Once done with all factor which connect to it, then go through uniqueinds and contract in the 
+  ## associated new factors
+  partial_ind = cp.additional_items[:factor_to_part_cont][fact]
+  if fact == length(factors) || cp.additional_items[:factor_to_part_cont][fact + 1] != partial_ind
+    ## go through factors
+    partial_vertex = cp.additional_items[:ext_ind_to_vertex][ind(factors[fact], 2)]
+    p = cp.target[partial_vertex]
+    for uniq in uniqueinds(cp.target, partial_vertex)
+      p = had_contract(p, factors[cp.additional_items[:ext_ind_to_factor][uniq]], rank)
+    end
+    cp.additional_items[:partial_mtkrp][partial_ind] = p
+  end
+end

@@ -1,7 +1,7 @@
 using Test
 include("$(@__DIR__)/../ITensorCPD.jl")
 using .ITensorCPD:
-  als_optimize, direct, random_CPD, random_CPD_square_network, row_norm, reconstruct
+  als_optimize, direct, random_CPD, random_CPD_square_network, row_norm, reconstruct, had_contract
 using ITensors: Index, ITensor, array, contract, dim, norm, random_itensor
 
 @testset "Norm Row test, elt=$elt" for elt in [Float32, Float64, ComplexF32, ComplexF64]
@@ -426,7 +426,7 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false)
 
     if check_svd
       U,S,V = svd(had, r1)
-      @show data(S)
+      return S
     end
     is = ind.(core, 2)
     #env = ITensor(Float64, is);
@@ -692,9 +692,10 @@ theor = [
 ]
 beta = 0.41
 tn = ising_network(Float64, s, beta; h);
-r1 = Index(100, "CP_rank")
-r2 = Index(100, "CP_rank")
-contract_loops(r1, r2, tn, 1; check_svd=true)
+using NDTensors
+r1 = Index(10, "CP_rank")
+r2 = Index(10, "CP_rank")
+evals = contract_loops(r1, r2, tn, 1; check_svd=false)
 
 betas = [1.0 - i for i in 0:0.01:1]
 # cp = 4.3732548624393e10 / 8.3001368444895e10
@@ -751,3 +752,57 @@ savefig("../CP_ising_2site_error_exact_center.pdf")
 
 szsz - szsz_bp
 cp - szsz_bp
+
+
+beta = 0.41
+tn = ising_network(Float64, s, beta; h);
+using NDTensors
+r1 = Index(10, "CP_rank")
+r2 = Index(10, "CP_rank")
+s1 = subgraph(
+                tn,
+                (
+                  (2, 2),
+                  (2, 3),
+                  (2, 4),
+                  (2, 5),
+                  (2, 6),
+                  (2, 7),
+                  (3, 7),
+                  (4, 7),
+                  (5, 7),
+                  (6, 7),
+                  (6, 6),
+                  (6, 5),
+                  (6, 4),
+                  (6, 3),
+                  (6, 2),
+                  (5, 2),
+                  (4, 2),
+                  (3, 2),
+                ),
+              )
+
+sising = s1.data_graph.vertex_data.values
+sisingp = replace_inner_w_prime_loop(sising)
+
+sqrs = sising[1] * sisingp[1]
+for i in 2:length(sising)
+  sqrs = sqrs * sising[i] * sisingp[i]
+end
+sqrt(sqrs[])
+
+fit = ITensorCPD.FitCheck(1e-3, 6, sqrt(sqrs[]))
+cp = ITensorCPD.random_CPD_square_network(sising, r1)
+@time cpopt = ITensorCPD.als_optimize(cp, r1, fit)
+
+A = s1[2,2]
+Ar = cpopt[1] * s1[2,2]
+ITensorCPD.had_contract(Ar, cpopt[2], r1)
+
+r1 = Index(100, "CP_rank")
+cp = ITensorCPD.random_CPD_ITensorNetwork(s1, r1);
+@time ITensorCPD.als_optimize(cp, r1, fit);
+
+cp = ITensorCPD.random_CPD_square_network(sising, r1);
+@time cpopt = ITensorCPD.als_optimize(cp, r1, fit);
