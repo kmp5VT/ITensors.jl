@@ -131,13 +131,16 @@ function random_CPD_ITensorNetwork(target::ITensorNetwork, rank::Index; rng=noth
   @show length(verts)
   for v in verts
     partial = target[v]
-    @show length(uniqueinds(target, v))
     for uniq in uniqueinds(target, v)
       external_ind_to_vertex[uniq] = v
       factor = row_norm(random_itensor(rng, elt, rank, uniq), uniq)[1]
+      @show factor
       push!(cp, factor)
       partial = had_contract(partial, factor, rank)
     end
     push!(partial_mtkrp, partial)
   end
+
+  l = fill!(ITensor(elt, rank), zero(elt))
+  return CPD(target, cp, l, network_solver(), Dict(:partial_mtkrp => partial_mtkrp, :ext_ind_to_vertex => external_ind_to_vertex))
 end
