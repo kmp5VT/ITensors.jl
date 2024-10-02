@@ -21,6 +21,7 @@ factors(cp::CPD) = getproperty(cp, :factors)
 mttkrp_algorithm(cp::CPD) = getproperty(cp, :mttkrp_alg)
 Base.getindex(cp::CPD, i) = cp.factors[i]
 Base.getindex(cp::CPD) = cp.λ
+Base.copy(cp::CPD) = CPD(cp.target, copy(cp.factors), copy(cp.λ), cp.mttkrp_alg, cp.additional_items)
 
 Base.eltype(cp::CPD) = return eltype(cp.λ)
 
@@ -110,4 +111,33 @@ function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng=not
   push!(partial_mtkrp, mtkrp)
 
   return CPD(target, cp, l, square_lattice(), Dict(:partial_mtkrp => partial_mtkrp))
+end
+
+
+## TODO make this an extension?
+using ITensorNetworks: ITensorNetwork, nv, vertices
+function random_CPD_ITensorNetwork(target::ITensorNetwork, rank::Index; rng=nothing)
+  rng = isnothing(rng) ? MersenneTwister(3) : rng
+  verts = vertices(target)
+  elt = eltype(target[first(verts)])
+  cp = Vector{ITensor}([])
+  partial_mtkrp = similar(cp)
+  num_tensors = nv(target)
+  external_ind_to_vertex = Dict()
+
+  ## What we need to do is loop through every
+  ## vertex and find the common/non-common inds.
+  ## for every noncommonind push
+  @show length(verts)
+  for v in verts
+    partial = target[v]
+    @show length(uniqueinds(target, v))
+    for uniq in uniqueinds(target, v)
+      external_ind_to_vertex[uniq] = v
+      factor = row_norm(random_itensor(rng, elt, rank, uniq), uniq)[1]
+      push!(cp, factor)
+      partial = had_contract(partial, factor, rank)
+    end
+    push!(partial_mtkrp, partial)
+  end
 end
