@@ -154,6 +154,11 @@ function random_CPD_ITensorNetwork(target::ITensorNetwork, rank::Index; rng=noth
     cp,
     l,
     network_solver(),
-    Dict(:partial_mtkrp => partial_mtkrp, :ext_ind_to_vertex => external_ind_to_vertex, :ext_ind_to_factor => extern_ind_to_factor, :factor_to_part_cont => factor_number_to_partial_cont_number),
+    Dict(
+      :partial_mtkrp => partial_mtkrp,
+      :ext_ind_to_vertex => external_ind_to_vertex,
+      :ext_ind_to_factor => extern_ind_to_factor,
+      :factor_to_part_cont => factor_number_to_partial_cont_number,
+    ),
   )
 end
