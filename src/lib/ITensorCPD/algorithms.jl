@@ -98,3 +98,5 @@ function post_solve(::square_lattice, factors, λ, cp, rank::Index, fact::Intege
     end
   end
 end
+
+struct network_solver <: MttkrpAlgorithm end
