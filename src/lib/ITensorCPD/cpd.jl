@@ -21,7 +21,9 @@ factors(cp::CPD) = getproperty(cp, :factors)
 mttkrp_algorithm(cp::CPD) = getproperty(cp, :mttkrp_alg)
 Base.getindex(cp::CPD, i) = cp.factors[i]
 Base.getindex(cp::CPD) = cp.λ
-Base.copy(cp::CPD) = CPD(cp.target, copy(cp.factors), copy(cp.λ), cp.mttkrp_alg, cp.additional_items)
+function Base.copy(cp::CPD)
+  return CPD(cp.target, copy(cp.factors), copy(cp.λ), cp.mttkrp_alg, cp.additional_items)
+end
 
 Base.eltype(cp::CPD) = return eltype(cp.λ)
 
@@ -113,7 +115,6 @@ function random_CPD_square_network(target::Vector{ITensor}, rank::Index; rng=not
   return CPD(target, cp, l, square_lattice(), Dict(:partial_mtkrp => partial_mtkrp))
 end
 
-
 ## TODO make this an extension?
 using ITensorNetworks: ITensorNetwork, nv, vertices
 function random_CPD_ITensorNetwork(target::ITensorNetwork, rank::Index; rng=nothing)
@@ -142,5 +143,11 @@ function random_CPD_ITensorNetwork(target::ITensorNetwork, rank::Index; rng=noth
   end
 
   l = fill!(ITensor(elt, rank), zero(elt))
-  return CPD(target, cp, l, network_solver(), Dict(:partial_mtkrp => partial_mtkrp, :ext_ind_to_vertex => external_ind_to_vertex))
+  return CPD(
+    target,
+    cp,
+    l,
+    network_solver(),
+    Dict(:partial_mtkrp => partial_mtkrp, :ext_ind_to_vertex => external_ind_to_vertex),
+  )
 end
