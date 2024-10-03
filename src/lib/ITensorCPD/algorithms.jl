@@ -120,7 +120,7 @@ function mttkrp(::network_solver, factors, cp, rank::Index, fact::Int)
   env_list = [
     cp.additional_items[:partial_mtkrp][1:end .!= cp.additional_items[:factor_to_part_cont][fact]]...,
   ]
-  p = had_contract([p, env_list...,], rank)
+  p = had_contract([p, env_list...], rank)
   # for x in env_list
   #   p = had_contract(x, p, rank)
   # end

@@ -43,13 +43,14 @@ function had_contract(tensors::Vector{<:ITensor}, had::Index; α=true, sequence=
   # if !all(x -> (had ∉ inds(x)) == 0, tensors) 
   #   had_contract([contract(tensors[1], tensors[2]), tensors[3:end]...], had; α, sequence)
   # end
-  positions_of_had = Dict(y => (findfirst(x->x == had, inds(y))) for y in had_tensors)
+  positions_of_had = Dict(y => (findfirst(x -> x == had, inds(y))) for y in had_tensors)
   slices = [eachslice(array(x); dims=positions_of_had[x]) for x in had_tensors]
   slices_inds = [inds(x)[1:end .!= positions_of_had[x]] for x in had_tensors]
   # inds_c = noncommoninds(A, B)
   # C = ITensor(elt, vcat(had, inds_c...))
   ## TODO could be a better way to contract these given a sequence?
-  cslice = α .* contract([itensor(slices[x][1], slices_inds[x]) for x in 1:length(had_tensors)])
+  cslice =
+    α .* contract([itensor(slices[x][1], slices_inds[x]) for x in 1:length(had_tensors)])
   # ## Right now I have to fill C with zeros because I hate empty tensor
   C = ITensor(zeros(eltype(cslice), dim(had) * dim(cslice)), (had, inds(cslice)...))
   slices_c = eachslice(array(C); dims=1)
@@ -57,9 +58,10 @@ function had_contract(tensors::Vector{<:ITensor}, had::Index; α=true, sequence=
 
   ## TODO would be better to do in place but can't do a list of tensors in place right now
   for i in 2:dim(had)
-    slices_c[i] .= array(α .* contract([itensor(slices[x][i], slices_inds[x]) for x in 1:length(had_tensors)]))
+    slices_c[i] .= array(
+      α .* contract([itensor(slices[x][i], slices_inds[x]) for x in 1:length(had_tensors)])
+    )
   end
 
-  
   return isempty(no_had) ? C : contract([C, no_had...])
 end
