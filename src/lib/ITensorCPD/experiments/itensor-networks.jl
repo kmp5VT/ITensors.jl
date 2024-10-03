@@ -124,9 +124,8 @@ cp = ITensorCPD.random_CPD_ITensorNetwork(s1, r1);
 cp = ITensorCPD.random_CPD_square_network(sising, r1);
 @time cpopt = ITensorCPD.als_optimize(cp, r1, fit);
 
-
-s3 = subgraph(tn, ((1,1),(1,2),(1,3), (2,3), (3,3), (3,2), (3,1)))
-s4 = subgraph(tn, ((1,2), (2,2), (2,1), (3,1)))
+s3 = subgraph(tn, ((1, 1), (1, 2), (1, 3), (2, 3), (3, 3), (3, 2), (3, 1)))
+s4 = subgraph(tn, ((1, 2), (2, 2), (2, 1), (3, 1)))
 sising = s1.data_graph.vertex_data.values
 sisingp = replace_inner_w_prime_loop(sising)
 sqrs = sising[1] * sisingp[1]
@@ -142,27 +141,40 @@ cp = ITensorCPD.random_CPD_ITensorNetwork(s1, r1);
 nx = 3
 ny = 3
 nz = 3
-box = named_grid((nx,ny,nz))
+box = named_grid((nx, ny, nz))
 
 s = IndsNetwork(box; link_space=2)
 tn_box = ising_network(Float64, s, beta)
-s1 = subgraph(tn_box, ((1,1,1), (1,1,2), (1,1,3),
-                    (1,2,3), (1,3,3),
-                    (1,3,2), (1,3,1),
-                    (1,2,1)));
-s2 = subgraph(tn_box, ((2,1,1), (2,1,2), (2,1,3),
-                    (2,2,3), (2,3,3),
-                    (2,3,2), (2,3,1),
-                    (2,2,1)));
-          
-s3 = subgraph(tn_box, ((2,1,1), (2,1,2), (2,1,3),
-                    (2,2,3), (2,3,3),
-                    (2,3,2), (2,3,1),
-                    (2,2,1),
-                    (1,1,1), (1,1,2), (1,1,3),
-                    (1,2,3), (1,3,3),
-                    (1,3,2), (1,3,1),
-                    (1,2,1)));
+s1 = subgraph(
+  tn_box,
+  ((1, 1, 1), (1, 1, 2), (1, 1, 3), (1, 2, 3), (1, 3, 3), (1, 3, 2), (1, 3, 1), (1, 2, 1)),
+);
+s2 = subgraph(
+  tn_box,
+  ((2, 1, 1), (2, 1, 2), (2, 1, 3), (2, 2, 3), (2, 3, 3), (2, 3, 2), (2, 3, 1), (2, 2, 1)),
+);
+
+s3 = subgraph(
+  tn_box,
+  (
+    (2, 1, 1),
+    (2, 1, 2),
+    (2, 1, 3),
+    (2, 2, 3),
+    (2, 3, 3),
+    (2, 3, 2),
+    (2, 3, 1),
+    (2, 2, 1),
+    (1, 1, 1),
+    (1, 1, 2),
+    (1, 1, 3),
+    (1, 2, 3),
+    (1, 3, 3),
+    (1, 3, 2),
+    (1, 3, 1),
+    (1, 2, 1),
+  ),
+);
 r1 = Index(10, "CP_rank")
 cp = ITensorCPD.random_CPD_ITensorNetwork(s1, r1);
 sising = s1.data_graph.vertex_data.values

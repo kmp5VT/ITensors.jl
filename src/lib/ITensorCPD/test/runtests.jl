@@ -157,18 +157,12 @@ include("util.jl")
 @testset "itensor_networks" for elt in (Float32, Float64)
   nx = 3
   ny = 3
-  s = IndsNetwork(named_grid((nx, ny)); link_space=2);
+  s = IndsNetwork(named_grid((nx, ny)); link_space=2)
 
-  tn = ising_network(elt, s, beta; h);
+  tn = ising_network(elt, s, beta; h)
 
   r = Index(10, "CP_rank")
-  s1 = subgraph(
-  tn,
-  ( (1, 1), (1,2), (1,3),
-    (2,3), (3,3),
-    (3,2), (3,1),
-    (2,1)),
-  )
+  s1 = subgraph(tn, ((1, 1), (1, 2), (1, 3), (2, 3), (3, 3), (3, 2), (3, 1), (2, 1)))
 
   sising = s1.data_graph.vertex_data.values
   ## TODO make this with ITensorNetworks
@@ -180,7 +174,11 @@ include("util.jl")
   end
 
   fit = ITensorCPD.FitCheck(1e-3, 6, sqrt(sqrs[]))
-  cpopt = ITensorCPD.als_optimize(ITensorCPD.random_CPD_ITensorNetwork(s1, r), r, fit);
+  cpopt = ITensorCPD.als_optimize(ITensorCPD.random_CPD_ITensorNetwork(s1, r), r, fit)
   1.0 - norm(ITensorCPD.reconstruct(cpopt) - contract(s1)) / norm(contract(s1))
-  @test isapprox(fit.final_fit, 1.0 - norm(ITensorCPD.reconstruct(cpopt) - contract(s1)) / norm(contract(s1)); rtol=1e-3)
+  @test isapprox(
+    fit.final_fit,
+    1.0 - norm(ITensorCPD.reconstruct(cpopt) - contract(s1)) / norm(contract(s1));
+    rtol=1e-3,
+  )
 end
