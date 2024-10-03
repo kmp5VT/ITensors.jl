@@ -115,36 +115,6 @@ end
         sqrt((contract(square) * contract(square))[]) ≤ 1.0 - ITensorCPD.fit(check)
 end
 
-# ## Study 2d eising model case with this solver.
-# ## Try different beta values. Does it work better with larger beta.
-# using ITensors
-# include("$(@__DIR__)/../ITensorCPD.jl")
-# using .ITensorCPD: als_optimize, direct, random_CPD, random_CPD_square_network, row_norm, reconstruct
-
-# N = 4
-# sites = Index.((N,N,N,N))
-# β = 0.001
-# d = Vector{Float64}(undef, N*N)
-# for i in 1:N
-#   for j in 1:N
-#     d[(i-1) * N + j] = exp(-β* i * j)
-#   end
-# end
-# its = (itensor(d, sites[1], sites[2]), itensor(d, sites[2], sites[3]), itensor(d, sites[3], sites[4]), itensor(d, sites[4], sites[1]))
-
-# contract(its)[]
-
-## goal is to make 
-##       d2        d3      d4  
-##        |  d11   |  d22  |
-##    d1--a  ----  b   ---  c -- d5
-##     d88|        |1d      |d33 
-## d12 -- i ---4d    2d---  e -- d6
-##     d77|      3d|        |d44
-##   d11--h  ---   g   --   f -- d7
-##        |  d66   |   d55  |    
-##       d10      d9        d8  
-
 using ITensorNetworks
 using ITensorNetworks.NamedGraphs
 using ITensorNetworks.NamedGraphs.GraphsExtensions: subgraph
