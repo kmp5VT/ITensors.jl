@@ -5,6 +5,16 @@ using ITensorNetworks.NamedGraphs.NamedGraphGenerators: named_grid
 
 using ITensorNetworks: IndsNetwork, delta_network, edges, src, dst, degree, insert_linkinds
 using ITensors
+include("$(@__DIR__)/../ITensorCPD.jl")
+using .ITensorCPD:
+  als_optimize,
+  direct,
+  random_CPD,
+  random_CPD_square_network,
+  row_norm,
+  reconstruct,
+  had_contract
+
 function ising_network(
   eltype::Type, s::IndsNetwork, beta::Number; h::Number=0.0, szverts=nothing
 )
