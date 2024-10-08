@@ -361,6 +361,122 @@ end
 vals = [0.0, 0.0]
 cp_szsz = Vector{Vector{Float64}}([])
 ranks = [2, 6, 15]
+tn = ising_network(Float64, s, beta; h)
+r1 = Index(ranks[1], "CP_rank")
+s1 = subgraph(
+    tn,
+    (
+      (2, 2),
+      (2, 3),
+      (2, 4),
+      (2, 5),
+      (2, 6),
+      (2, 7),
+      (3, 7),
+      (4, 7),
+      (5, 7),
+      (6, 7),
+      (6, 6),
+      (6, 5),
+      (6, 4),
+      (6, 3),
+      (6, 2),
+      (5, 2),
+      (4, 2),
+      (3, 2),
+    ),
+  )
+
+  sising = s1.data_graph.vertex_data.values
+  sisingp = replace_inner_w_prime_loop(sising)
+
+  sqrs = sising[1] * sisingp[1]
+  for i in 2:length(sising)
+    sqrs = sqrs * sising[i] * sisingp[i]
+  end
+  sqrt(sqrs[])
+
+  fit = ITensorCPD.FitCheck(1e-3, 6, sqrt(sqrs[]))
+  cp = ITensorCPD.random_CPD_square_network(sising, r1)
+  @time cpopt = ITensorCPD.als_optimize(cp, r1, fit)
+  ## contract s1 with outer layer  
+  s3 = subgraph(tn, ((1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8),
+                      (2,8), (3,8), (4,8), (5,8), (6,8), (7,8),
+                      (7,7), (7,6), (7,5), (7,4), (7,3), (7,2),(7,1),
+                      (6,1), (5,1), (4,1), (3,1), (2,1))) 
+
+  using ITensorNetworks: vertices
+  function tn_cp_contract(tn::ITensorNetwork, cp::ITensorCPD.CPD)
+    tnp = copy(tn)
+    r = ind(cp[],1)
+    ## Go through all the nodes
+    contracted_cps = Int[]
+    for v in vertices(tnp)
+      ## For each node find the indices that are not connected to other tensors in the node
+      iss = uniqueinds(tnp, v)
+      for is in iss
+        cp_pos = findfirst(x -> x == is, ind.(cp.factors, 2))
+        @show cp_pos
+        isnothing(cp_pos) && continue
+        tnp[v] = ITensorCPD.had_contract(cp[cp_pos], tnp[v], r)
+        push!(contracted_cps, cp_pos)
+      end
+    end
+    v = [cp[x] for x in contracted_cps]
+    return tnp, filter!(x -> x ∉ v, cp.factors)
+  end
+
+  s3_cp, core_factors = tn_cp_contract(s3, cpopt);
+  s3_contracted = ITensorCPD.had_contract(s3_cp.data_graph.vertex_data.values, r1)
+
+  core = [
+    cpopt[4],
+    cpopt[6],
+    cpopt[8],
+    cpopt[10],
+    cpopt[13],
+    cpopt[15],
+    cpopt[17],
+    cpopt[21],
+    cpopt[23],
+    cpopt[25],
+    cpopt[27],
+    cpopt[32],
+    cpopt[34],
+    cpopt[36],
+  ]
+
+  es = [
+    cpopt[2] * tn[1, 2] * tn[1, 1]
+    cpopt[3] * tn[1, 3]
+    cpopt[5] * tn[1, 4]
+    cpopt[7] * tn[1, 5]
+    cpopt[9] * tn[1, 6]
+    cpopt[11] * tn[1, 7] * tn[1, 8]
+    cpopt[12] * tn[2, 8]
+    cpopt[14] * tn[3, 8]
+    cpopt[16] * tn[4, 8]
+    cpopt[18] * tn[5, 8]
+    cpopt[20] * tn[6, 8] * tn[7, 8]
+    cpopt[19] * tn[7, 7]
+    cpopt[22] * tn[7, 6]
+    cpopt[24] * tn[7, 5]
+    cpopt[26] * tn[7, 4]
+    cpopt[28] * tn[7, 3]
+    cpopt[30] * tn[7, 2] * tn[7, 1]
+    cpopt[29] * tn[6, 1]
+    cpopt[31] * tn[5, 1]
+    cpopt[33] * tn[4, 1]
+    cpopt[35] * tn[3, 1]
+    cpopt[1] * tn[2, 1]
+  ]
+
+  v = Vector{Float64}(undef, dim(r1))
+  for i in 1:dim(r1)
+    v[i] = contract([itensor(array(x)[i, :, :], inds(x)[2:end]) for x in es])[] * cpopt[][i]
+  end
+  v = itensor(v, r1)
+
 for rank in 1:length(ranks)
   push!(cp_szsz, Vector{Float64}(undef, 0))
   r1 = Index(ranks[rank], "CP_rank")
