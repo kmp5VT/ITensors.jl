@@ -86,7 +86,7 @@ h = 0.0
 h = 0
 s = IndsNetwork(named_grid((nx, ny)); link_space=2);
 
-#function contract_loops(r1, r2, tn, i; check_svd::Bool=false)
+function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = true)
   s1 = subgraph(
     tn,
     (
@@ -124,61 +124,65 @@ s = IndsNetwork(named_grid((nx, ny)); link_space=2);
   cp = ITensorCPD.random_CPD_square_network(sising, r1)
   @time cpopt = ITensorCPD.als_optimize(cp, r1, fit)
   ## contract s1 with outer layer   
-  core = [
-    cpopt[4],
-    cpopt[6],
-    cpopt[8],
-    cpopt[10],
-    cpopt[13],
-    cpopt[15],
-    cpopt[17],
-    cpopt[21],
-    cpopt[23],
-    cpopt[25],
-    cpopt[27],
-    cpopt[32],
-    cpopt[34],
-    cpopt[36],
-  ]
 
   souter = subgraph(tn, ((1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8),
                         (2,8), (3,8), (4,8), (5,8), (6,8), (7,8), 
                         (7,7), (7,6), (7,5), (7,4), (7,3), (7,2), (7,1), 
                         (6,1), (5,1), (4,1), (3,1), (2,1)))
-  # es = [
-  #   cpopt[2] * tn[1, 2] * tn[1, 1]
-  #   cpopt[3] * tn[1, 3]
-  #   cpopt[5] * tn[1, 4]
-  #   cpopt[7] * tn[1, 5]
-  #   cpopt[9] * tn[1, 6]
-  #   cpopt[11] * tn[1, 7] * tn[1, 8]
-  #   cpopt[12] * tn[2, 8]
-  #   cpopt[14] * tn[3, 8]
-  #   cpopt[16] * tn[4, 8]
-  #   cpopt[18] * tn[5, 8]
-  #   cpopt[20] * tn[6, 8] * tn[7, 8]
-  #   cpopt[19] * tn[7, 7]
-  #   cpopt[22] * tn[7, 6]
-  #   cpopt[24] * tn[7, 5]
-  #   cpopt[26] * tn[7, 4]
-  #   cpopt[28] * tn[7, 3]
-  #   cpopt[30] * tn[7, 2] * tn[7, 1]
-  #   cpopt[29] * tn[6, 1]
-  #   cpopt[31] * tn[5, 1]
-  #   cpopt[33] * tn[4, 1]
-  #   cpopt[35] * tn[3, 1]
-  #   cpopt[1] * tn[2, 1]
-  # ]
+ 
 
-  # v = Vector{Float64}(undef, dim(r1))
-  # for i in 1:dim(r1)
-  #   v[i] = contract([itensor(array(x)[i, :, :], inds(x)[2:end]) for x in es])[] * cpopt[][i]
-  # end
-  # v = itensor(v, r1)
-  sout, factors = ITensorCPD.tn_cp_contract(souter, cpopt)
-  core = cpopt.factors
-  sout = ITensorCPD.had_contract(sout.data_graph.vertex_data.values, r1)
-  sout = itensor(array(sout) .* array(cpopt[]), r1)
+  if old_contract
+    core = [
+      cpopt[4],
+      cpopt[6],
+      cpopt[8],
+      cpopt[10],
+      cpopt[13],
+      cpopt[15],
+      cpopt[17],
+      cpopt[21],
+      cpopt[23],
+      cpopt[25],
+      cpopt[27],
+      cpopt[32],
+      cpopt[34],
+      cpopt[36],
+    ]
+    es = [
+      cpopt[2] * tn[1, 2] * tn[1, 1]
+      cpopt[3] * tn[1, 3]
+      cpopt[5] * tn[1, 4]
+      cpopt[7] * tn[1, 5]
+      cpopt[9] * tn[1, 6]
+      cpopt[11] * tn[1, 7] * tn[1, 8]
+      cpopt[12] * tn[2, 8]
+      cpopt[14] * tn[3, 8]
+      cpopt[16] * tn[4, 8]
+      cpopt[18] * tn[5, 8]
+      cpopt[20] * tn[6, 8] * tn[7, 8]
+      cpopt[19] * tn[7, 7]
+      cpopt[22] * tn[7, 6]
+      cpopt[24] * tn[7, 5]
+      cpopt[26] * tn[7, 4]
+      cpopt[28] * tn[7, 3]
+      cpopt[30] * tn[7, 2] * tn[7, 1]
+      cpopt[29] * tn[6, 1]
+      cpopt[31] * tn[5, 1]
+      cpopt[33] * tn[4, 1]
+      cpopt[35] * tn[3, 1]
+      cpopt[1] * tn[2, 1]
+    ]
+    v = Vector{Float64}(undef, dim(r1))
+    for i in 1:dim(r1)
+      v[i] = contract([itensor(array(x)[i, :, :], inds(x)[2:end]) for x in es])[] * cpopt[][i]
+    end
+    v = itensor(v, r1)
+  else
+    sout, factors = ITensorCPD.tn_cp_contract(souter, cpopt)
+    core = cpopt.factors
+    sout = ITensorCPD.had_contract(sout.data_graph.vertex_data.values, r1)
+    sout = itensor(array(sout) .* array(cpopt[]), r1)
+  end
 
   s2 = subgraph(
     tn, ((3, 3), (3, 4), (3, 5), (3, 6), (4, 6), (5, 6), (5, 5), (5, 4), (5, 3), (4, 3))
@@ -369,13 +373,12 @@ end
 vals = [0.0, 0.0]
 cp_szsz = Vector{Vector{Float64}}([])
 ranks = [2, 6, 15]
-#for rank in 1:length(ranks)
-rank = 1
+for rank in 1:length(ranks)
   push!(cp_szsz, Vector{Float64}(undef, 0))
   r1 = Index(ranks[rank], "CP_rank")
   r2 = Index(ranks[rank], "CP_rank")
-  #for beta in [1.0 - i for i in 0:0.01:1]
-    #for i in 1:2
+  for beta in [1.0 - i for i in 0:0.01:1]
+    for i in 1:2
       if i == 1
         tn = ising_network(Float64, s, beta; h)
       else
