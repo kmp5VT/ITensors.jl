@@ -6,4 +6,5 @@ include("cpd.jl")
 include("converge_checks.jl")
 include("optimizers.jl")
 include("reconstruct.jl")
+include("cp_contract.jl")
 end
