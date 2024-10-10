@@ -120,7 +120,7 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = tru
   end
   sqrt(sqrs[])
 
-  fit = ITensorCPD.FitCheck(1e-3, 6, sqrt(sqrs[]))
+  fit = ITensorCPD.FitCheck(1e-3, 7, sqrt(sqrs[]))
   cp = ITensorCPD.random_CPD_square_network(sising, r1)
   @time cpopt = ITensorCPD.als_optimize(cp, r1, fit)
   ## contract s1 with outer layer   
@@ -178,10 +178,10 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = tru
     end
     v = itensor(v, r1)
   else
-    sout, factors = ITensorCPD.tn_cp_contract(souter, cpopt)
+    sout, factors, _ = ITensorCPD.tn_cp_contract(souter, cpopt)
     core = cpopt.factors
     sout = ITensorCPD.had_contract(sout.data_graph.vertex_data.values, r1)
-    sout = itensor(array(sout) .* array(cpopt[]), r1)
+    v = itensor(array(sout) .* array(cpopt[]), r1)
   end
 
   s2 = subgraph(
@@ -372,7 +372,8 @@ end
 
 vals = [0.0, 0.0]
 cp_szsz = Vector{Vector{Float64}}([])
-ranks = [2, 6, 15]
+cp_szsz_old = copy(cp_szsz)
+ranks = [1, 6, 15]
 for rank in 1:length(ranks)
   push!(cp_szsz, Vector{Float64}(undef, 0))
   r1 = Index(ranks[rank], "CP_rank")
@@ -385,7 +386,7 @@ for rank in 1:length(ranks)
         tn = ising_network(Float64, s, beta; h, szverts=[(4, 4), (4, 5)])
       end
       #if isnothing(env)
-      contract_loops(r1, r2, tn, i)
+      contract_loops(r1, r2, tn, i; old_contract = false)
       # contract_loop_exact_core(r1, r2, tn, i)
     end
     cp = vals[2] / vals[1]
@@ -529,14 +530,12 @@ for beta in betas
   szsz_bp_vbetter = denom[] / numer[]
   push!(bp_szsz, szsz_bp_vbetter)
 end
-inf = 0.5530853552926374
-szsz - inf
 
 using Plots
 plot(betas, theor[end:-1:1]; label="Infinite Lattice")
 plot!(betas, full_szsz; label="Exact Contraction")
 plot!(betas, bp_szsz; label="BP Contraction")
-plot!(betas, cp_szsz[1]; label="CP rank 2")
+plot!(betas, cp_szsz[1]; label="CP rank 1")
 plot!(betas, cp_szsz[2]; label="CP rank 6")
 plot!(betas, cp_szsz[3]; label="CP rank 15")
 plot!(;
@@ -545,7 +544,7 @@ plot!(;
   legend=:bottomright,
   title="CPD contraction of 2D network",
 )
-savefig("../CP_ising_2site_exact_center.pdf")
+# savefig("../CP_ising_2site_exact_center.pdf")
 
 plot(betas, abs.(full_szsz .- cp_szsz[1]); label="CP rank 1")
 plot!(betas, abs.(full_szsz .- cp_szsz[2]); label="CP rank 6")
