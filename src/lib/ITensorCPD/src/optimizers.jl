@@ -1,3 +1,4 @@
+using LinearAlgebra: ColumnNorm
 function als_optimize(cp::CPD, rank::Index; maxiters=1, kwargs...)
   return als_optimize(cp, rank, NoCheck(maxiters); kwargs...)
 end
@@ -27,7 +28,7 @@ function als_optimize(cp::CPD, rank::Index, converge)
       ## potentially better to first inverse the grammian then contract
       ## qr(A, Val(true))
       factors[fact], λ = row_norm(
-        itensor(qr(array(grammian), Val(true)) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2)
+        itensor(qr(array(grammian), ColumnNorm()) \ array(mtkrp), inds(mtkrp)), ind(mtkrp, 2)
       )
       part_grammian[fact] = factors[fact] * prime(factors[fact]; tags=tags(rank))
 
