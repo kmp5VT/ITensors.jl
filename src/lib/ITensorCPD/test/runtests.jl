@@ -114,7 +114,7 @@ end
   check = ITensorCPD.FitCheck(1e-3, 30, sqrt((contract(square) * contract(square))[]))
   @time opt_A = ITensorCPD.als_optimize(CP, r, check)
   @test norm(ITensorCPD.reconstruct(opt_A) - contract(square)) /
-        sqrt((contract(square) * contract(square))[]) ≤ 1.0 - ITensorCPD.fit(check)
+        sqrt((contract(square) * contract(square))[]) ≈ 1.0 - ITensorCPD.fit(check) rtol=1e-3
 end
 
 using ITensorNetworks
