@@ -1,6 +1,8 @@
-using Test
-include("$(@__DIR__)/../ITensorCPD.jl")
-using .ITensorCPD:
+using Test, Pkg
+Pkg.develop(path="$(@__DIR__)/../")
+#include("$(@__DIR__)/../ITensorCPD.jl")
+using ITensorCPD:
+  ITensorCPD,
   als_optimize,
   direct,
   random_CPD,
