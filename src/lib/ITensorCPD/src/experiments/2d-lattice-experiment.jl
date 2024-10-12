@@ -112,14 +112,13 @@ function replace_inner_w_prime_loop(tn)
 end
 
 ##############################################
-nx = 5
-ny = 5
+nx = 7
+ny = 8
 
 beta = 1.0
 h = 0.0
 
-h = 0
-s = IndsNetwork(named_grid((nx, ny)); link_space=3);
+s = IndsNetwork(named_grid((nx, ny)); link_space=2);
 
 function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = true)
   s1 = subgraph(
@@ -213,7 +212,7 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = tru
     end
     v = itensor(v, r1)
   else
-    sout, factors, _ = ITensorCPD.tn_cp_contract(souter, cpopt)
+    sout, factors = ITensorCPD.tn_cp_contract(souter, cpopt)
     core = cpopt.factors
     sout = ITensorCPD.had_contract(sout.data_graph.vertex_data.values, r1)
     v = itensor(array(sout) .* array(cpopt[]), r1)
@@ -567,19 +566,19 @@ for beta in betas
 end
 
 using Plots
-plot(betas, theor[end:-1:1]; label="Infinite Lattice")
-plot!(betas, full_szsz; label="Exact Contraction")
-plot!(betas, bp_szsz; label="BP Contraction")
-plot!(betas, cp_szsz[1]; label="CP rank 1")
-plot!(betas, cp_szsz[2]; label="CP rank 6")
-plot!(betas, cp_szsz[3]; label="CP rank 15")
+plot(betas, theor[end:-1:1]; label="Infinite Lattice", s=:solid, lw=5)
+plot(betas, full_szsz; label="Exact Contraction", s=:dash, lw=5)
+plot!(betas, bp_szsz; label="BP Contraction", s=:dot, lw=5)
+plot!(betas, cp_szsz[1]; label="CP rank 1", s=:auto, lw=5)
+plot!(betas, cp_szsz[2]; label="CP rank 6", s=:auto, lw=5)
+plot!(betas, cp_szsz[3]; label="CP rank 15", s =:auto, lw=4)
 plot!(;
   xlabel="Inverse Temparature",
   ylabel="SZ Correlation",
   legend=:bottomright,
   title="CPD contraction of 2D network",
 )
-# savefig("../CP_ising_2site_exact_center.pdf")
+savefig("../CP_ising_ref.pdf")
 
 plot(betas, abs.(full_szsz .- cp_szsz[1]); label="CP rank 1")
 plot!(betas, abs.(full_szsz .- cp_szsz[2]); label="CP rank 6")
