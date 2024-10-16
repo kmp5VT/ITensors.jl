@@ -15,6 +15,27 @@ using .ITensorCPD:
   reconstruct,
   had_contract
 
+i,j,k,l,m,n = Index.((5,20,1000,3,4,30))
+A = randomITensor(i,j,k)
+B = randomITensor(k,l,m)
+C = randomITensor(m,j,n)
+#U, S, V = svd(B, k)
+#B = U * S * V
+
+r1 = Index(101, "CP rank")
+r2 = Index(5, "CP rank")
+r3 = Index(300, "Cp rank")
+Acpd = ITensorCPD.random_CPD(A, r1);
+Bcpd = ITensorCPD.random_CPD(B, r2);
+Ccpd = ITensorCPD.random_CPD(C, r3);
+A = ITensorCPD.reconstruct(Acpd)
+B = ITensorCPD.reconstruct(Bcpd)
+C = ITensorCPD.reconstruct(Ccpd)
+
+D = A * B * C
+rp = Index(101,"rank")
+fit = ITensorCPD.FitCheck(1e-10, 100, norm(C))
+ITensorCPD.als_direct_optimize(ITensorCPD.random_CPD(C, rp), rp, fit;);
 function ising_network(
   eltype::Type, s::IndsNetwork, beta::Number; h::Number=0.0, szverts=nothing
 )
