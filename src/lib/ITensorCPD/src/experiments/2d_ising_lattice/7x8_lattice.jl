@@ -5,8 +5,8 @@ using ITensorNetworks.NamedGraphs.NamedGraphGenerators: named_grid
 
 using ITensorNetworks: IndsNetwork, delta_network, edges, src, dst, degree, insert_linkinds
 using ITensors
-include("$(@__DIR__)/../ITensorCPD.jl")
-using .ITensorCPD:
+# include("$(@__DIR__)/../ITensorCPD.jl")
+using ITensorCPD:
   als_optimize,
   direct,
   random_CPD,
@@ -15,27 +15,27 @@ using .ITensorCPD:
   reconstruct,
   had_contract
 
-i,j,k,l,m,n = Index.((5,20,1000,3,4,30))
-A = randomITensor(i,j,k)
-B = randomITensor(k,l,m)
-C = randomITensor(m,j,n)
-#U, S, V = svd(B, k)
-#B = U * S * V
+# i,j,k,l,m,n = Index.((5,20,1000,3,4,30))
+# A = randomITensor(i,j,k)
+# B = randomITensor(k,l,m)
+# C = randomITensor(m,j,n)
+# #U, S, V = svd(B, k)
+# #B = U * S * V
 
-r1 = Index(101, "CP rank")
-r2 = Index(5, "CP rank")
-r3 = Index(300, "Cp rank")
-Acpd = ITensorCPD.random_CPD(A, r1);
-Bcpd = ITensorCPD.random_CPD(B, r2);
-Ccpd = ITensorCPD.random_CPD(C, r3);
-A = ITensorCPD.reconstruct(Acpd)
-B = ITensorCPD.reconstruct(Bcpd)
-C = ITensorCPD.reconstruct(Ccpd)
+# r1 = Index(101, "CP rank")
+# r2 = Index(5, "CP rank")
+# r3 = Index(300, "Cp rank")
+# Acpd = ITensorCPD.random_CPD(A, r1);
+# Bcpd = ITensorCPD.random_CPD(B, r2);
+# Ccpd = ITensorCPD.random_CPD(C, r3);
+# A = ITensorCPD.reconstruct(Acpd)
+# B = ITensorCPD.reconstruct(Bcpd)
+# C = ITensorCPD.reconstruct(Ccpd)
 
-D = A * B * C
-rp = Index(101,"rank")
-fit = ITensorCPD.FitCheck(1e-10, 100, norm(C))
-ITensorCPD.als_direct_optimize(ITensorCPD.random_CPD(C, rp), rp, fit;);
+# D = A * B * C
+# rp = Index(101,"rank")
+# fit = ITensorCPD.FitCheck(1e-10, 100, norm(C))
+# ITensorCPD.als_direct_optimize(ITensorCPD.random_CPD(C, rp), rp, fit;);
 function ising_network(
   eltype::Type, s::IndsNetwork, beta::Number; h::Number=0.0, szverts=nothing
 )
@@ -71,41 +71,60 @@ function ising_network(
   return tn
 end
 
-function potts_network(
-  eltype::Type, s::IndsNetwork, beta::Number; h::Number=0.0, szverts=nothing
-)
-  s = insert_linkinds(s; link_space=3)
-  # s = insert_missing_internal_inds(s, edges(s); internal_inds_space=2)
-  tn = delta_network(eltype, s)
-  if (szverts != nothing)
-    for v in szverts
-      tn[v] = diagITensor(eltype[1, -1], inds(tn[v]))
-    end
+function ring_inds(start::Int, nx::Int, ny::Int)
+  inds = Vector{Tuple{Int,Int}}()
+  for y in start:(ny-start+1)
+      push!(inds, (start,y))
   end
-  # for edge in edges(tn)
-  #   v1 = src(edge)
-  #   v2 = dst(edge)
-  #   i = commoninds(tn[v1], tn[v2])[1]
-  #   deg_v1 = degree(tn, v1)
-  #   deg_v2 = degree(tn, v2)
-  #   f11 = exp(beta * (1 + h / deg_v1 + h / deg_v2))
-  #   f12 = exp(beta * (-1 + h / deg_v1 - h / deg_v2))
-  #   f21 = exp(beta * (-1 - h / deg_v1 + h / deg_v2))
-  #   f22 = exp(beta * (1 - h / deg_v1 - h / deg_v2))
-  #   q = eltype[f11 f12; f21 f22]
-  #   w, V = eigen(q)
-  #   w = map(sqrt, w)
-  #   sqrt_q = V * ITensors.Diagonal(w) * inv(V)
-  #   t = itensor(sqrt_q, i, i')
-  #   tn[v1] = tn[v1] * t
-  #   tn[v1] = noprime!(tn[v1])
-  #   t = itensor(sqrt_q, i', i)
-  #   tn[v2] = tn[v2] * t
-  #   tn[v2] = noprime!(tn[v2])
-  # end
-  return tn
+  for x in start+1:(nx-start+1)
+      push!(inds, (x, ny-start+1))
+  end
+  for y in (ny-start +1):-1:start
+      push!(inds, (nx-start+1, y))
+  end
+  for x in (nx-start+1):-1:start+1
+  push!(inds, (x, start))
+  end
+  return Tuple(unique!(inds))
 end
-ptn = potts_network(Float64, s, 1.0)
+
+#==
+  function potts_network(
+    eltype::Type, s::IndsNetwork, beta::Number; h::Number=0.0, szverts=nothing
+  )
+    s = insert_linkinds(s; link_space=3)
+    # s = insert_missing_internal_inds(s, edges(s); internal_inds_space=2)
+    tn = delta_network(eltype, s)
+    if (szverts != nothing)
+      for v in szverts
+        tn[v] = diagITensor(eltype[1, -1], inds(tn[v]))
+      end
+    end
+    # for edge in edges(tn)
+    #   v1 = src(edge)
+    #   v2 = dst(edge)
+    #   i = commoninds(tn[v1], tn[v2])[1]
+    #   deg_v1 = degree(tn, v1)
+    #   deg_v2 = degree(tn, v2)
+    #   f11 = exp(beta * (1 + h / deg_v1 + h / deg_v2))
+    #   f12 = exp(beta * (-1 + h / deg_v1 - h / deg_v2))
+    #   f21 = exp(beta * (-1 - h / deg_v1 + h / deg_v2))
+    #   f22 = exp(beta * (1 - h / deg_v1 - h / deg_v2))
+    #   q = eltype[f11 f12; f21 f22]
+    #   w, V = eigen(q)
+    #   w = map(sqrt, w)
+    #   sqrt_q = V * ITensors.Diagonal(w) * inv(V)
+    #   t = itensor(sqrt_q, i, i')
+    #   tn[v1] = tn[v1] * t
+    #   tn[v1] = noprime!(tn[v1])
+    #   t = itensor(sqrt_q, i', i)
+    #   tn[v2] = tn[v2] * t
+    #   tn[v2] = noprime!(tn[v2])
+    # end
+    return tn
+  end
+  ptn = potts_network(Float64, s, 1.0)
+==#
 ## This function primes the internal indices of a 2d
 ## network. Doing so allows one to compute the norm
 ## of the ising network more easily
@@ -132,40 +151,7 @@ function replace_inner_w_prime_loop(tn)
   return ntn
 end
 
-##############################################
-nx = 7
-ny = 8
-
-beta = 1.0
-h = 0.0
-
-s = IndsNetwork(named_grid((nx, ny)); link_space=2);
-
-function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = true)
-  s1 = subgraph(
-    tn,
-    (
-      (2, 2),
-      (2, 3),
-      (2, 4),
-      (2, 5),
-      (2, 6),
-      (2, 7),
-      (3, 7),
-      (4, 7),
-      (5, 7),
-      (6, 7),
-      (6, 6),
-      (6, 5),
-      (6, 4),
-      (6, 3),
-      (6, 2),
-      (5, 2),
-      (4, 2),
-      (3, 2),
-    ),
-  )
-
+function norm_of_loop(s1::ITensorNetwork)
   sising = s1.data_graph.vertex_data.values
   sisingp = replace_inner_w_prime_loop(sising)
 
@@ -173,17 +159,21 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = tru
   for i in 2:length(sising)
     sqrs = sqrs * sising[i] * sisingp[i]
   end
-  sqrt(sqrs[])
+  return sqrt(sqrs[])
+end
 
-  fit = ITensorCPD.FitCheck(1e-3, 7, sqrt(sqrs[]))
-  cp = ITensorCPD.random_CPD_square_network(sising, r1)
+function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = true)
+  s1 = subgraph(
+    tn,
+    ring_inds(2, 7, 8)
+  )
+
+  fit = ITensorCPD.FitCheck(1e-3, 100, norm_of_loop(s1))
+  cp = ITensorCPD.random_CPD_ITensorNetwork(s1, r1)
   @time cpopt = ITensorCPD.als_optimize(cp, r1, fit)
   ## contract s1 with outer layer   
 
-  souter = subgraph(tn, ((1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8),
-                        (2,8), (3,8), (4,8), (5,8), (6,8), (7,8), 
-                        (7,7), (7,6), (7,5), (7,4), (7,3), (7,2), (7,1), 
-                        (6,1), (5,1), (4,1), (3,1), (2,1)))
+  souter = subgraph(tn, ring_inds(1,7,8))
  
 
   if old_contract
@@ -240,45 +230,38 @@ function contract_loops(r1, r2, tn, i; check_svd::Bool=false, old_contract = tru
   end
 
   s2 = subgraph(
-    tn, ((3, 3), (3, 4), (3, 5), (3, 6), (4, 6), (5, 6), (5, 5), (5, 4), (5, 3), (4, 3))
+    tn, ring_inds(3,7,8)
   )
 
-  sising = s2.data_graph.vertex_data.values
-  sisingp = replace_inner_w_prime_loop(sising)
-
-  sqrs = sising[1] * sisingp[1]
-  for i in 2:length(sising)
-    sqrs = sqrs * sising[i] * sisingp[i]
-  end
-  sqrt(sqrs[])
-
-  fit = ITensorCPD.FitCheck(1e-3, 10, sqrt(sqrs[]))
-  cp = ITensorCPD.random_CPD_square_network(sising, r2)
+  fit = ITensorCPD.FitCheck(1e-3, 10, norm_of_loop(s2))
+  cp = ITensorCPD.random_CPD_ITensorNetwork(s2, r2)
   @time cpopt = ITensorCPD.als_optimize(cp, r2, fit)
 
-  es = [
-    cpopt[2] * core[1]
-    cpopt[3] * core[2]
-    cpopt[5] * core[3]
-    cpopt[7] * core[4]
-    cpopt[8] * core[5]
-    cpopt[10] * core[6]
-    cpopt[11] * core[8]
-    cpopt[12] * core[7]
-    cpopt[14] * core[9]
-    cpopt[16] * core[10]
-    cpopt[17] * core[12]
-    cpopt[18] * core[11]
-    cpopt[19] * core[13]
-    cpopt[1] * core[14]
-  ]
+  # es = [
+  #   cpopt[2] * core[1]
+  #   cpopt[3] * core[2]
+  #   cpopt[5] * core[3]
+  #   cpopt[7] * core[4]
+  #   cpopt[8] * core[5]
+  #   cpopt[10] * core[6]
+  #   cpopt[11] * core[8]
+  #   cpopt[12] * core[7]
+  #   cpopt[14] * core[9]
+  #   cpopt[16] * core[10]
+  #   cpopt[17] * core[12]
+  #   cpopt[18] * core[11]
+  #   cpopt[19] * core[13]
+  #   cpopt[1] * core[14]
+  # ]
 
-  core = [cpopt[4], cpopt[6], cpopt[9], cpopt[13], cpopt[15], cpopt[20]]
+  # core = [cpopt[4], cpopt[6], cpopt[9], cpopt[13], cpopt[15], cpopt[20]]
 
-  had = copy(es[1])
-  for j in 2:length(es)
-    had = ITensors.hadamard_product(had, es[j])
-  end
+  # had = copy(es[1])
+  # for j in 2:length(es)
+  #   had = ITensors.hadamard_product(had, es[j])
+  # end
+
+  had, es, core = ITensorCPD.cp_cp_contract(core, cpopt.factors)
 
   if check_svd
     U, S, V = svd(had, r1)
@@ -425,22 +408,39 @@ function contract_loop_exact_core(r1, r2, tn, i; check_svd::Bool=false)
   return vals[i] = result
 end
 
+function norm_of_loop(s1::ITensorNetwork)
+  sising = s1.data_graph.vertex_data.values
+  sisingp = replace_inner_w_prime_loop(sising)
+
+  sqrs = sising[1] * sisingp[1]
+  for i in 2:length(sising)
+    sqrs = sqrs * sising[i] * sisingp[i]
+  end
+  return sqrt(sqrs[])
+end
+
+##############################################
+nx = 7
+ny = 8
+
+s = IndsNetwork(named_grid((nx, ny)); link_space=2);
+
 vals = [0.0, 0.0]
 cp_szsz = Vector{Vector{Float64}}([])
 cp_szsz_old = copy(cp_szsz)
 ranks = [1, 6, 15]
+cp_guess = nothing
 for rank in 1:length(ranks)
   push!(cp_szsz, Vector{Float64}(undef, 0))
   r1 = Index(ranks[rank], "CP_rank")
   r2 = Index(ranks[rank], "CP_rank")
   for beta in [1.0 - i for i in 0:0.01:1]
-    for i in 1:2
-      if i == 1
+   for i in 1:2
+     if i == 1
         tn = ising_network(Float64, s, beta; h)
       else
         tn = ising_network(Float64, s, beta; h, szverts=[(4, 4), (4, 5)])
       end
-      #if isnothing(env)
       contract_loops(r1, r2, tn, i; old_contract = false)
       # contract_loop_exact_core(r1, r2, tn, i)
     end
@@ -448,6 +448,11 @@ for rank in 1:length(ranks)
     push!(cp_szsz[rank], cp)
   end
 end
+
+
+
+##################################################################
+# refs
 
 theor = [
   0.0,
@@ -562,7 +567,7 @@ using ITensorNetworks: BeliefPropagationCache, update, environment
 for beta in betas
   tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h)
   tnO = ising_network(
-    Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(4, 4), (4, 5)]
+    Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(3, 3), (3, 4)]
   )
 
   using OMEinsumContractionOrders: OMEinsumContractionOrders
@@ -586,20 +591,24 @@ for beta in betas
   push!(bp_szsz, szsz_bp_vbetter)
 end
 
+#########################################################################
+# plots
+
+cp_szsz[1] = cp_szsz[1][102:end]
 using Plots
-plot(betas, theor[end:-1:1]; label="Infinite Lattice", s=:solid, lw=5)
-plot(betas, full_szsz; label="Exact Contraction", s=:dash, lw=5)
-plot!(betas, bp_szsz; label="BP Contraction", s=:dot, lw=5)
-plot!(betas, cp_szsz[1]; label="CP rank 1", s=:auto, lw=5)
-plot!(betas, cp_szsz[2]; label="CP rank 6", s=:auto, lw=5)
-plot!(betas, cp_szsz[3]; label="CP rank 15", s =:auto, lw=4)
+plot(betas, theor[end:-1:1]; label="Infinite Lattice", s=:solid, )
+plot!(betas, full_szsz; label="Exact Contraction", s=:dash,)
+plot!(betas, bp_szsz; label="BP Contraction", s=:dot,)
+plot!(betas, cp_szsz[1]; label="CP rank 1", s=:auto,)
+plot!(betas, cp_szsz[2]; label="CP rank 6", s=:auto, )
+plot!(betas, cp_szsz[3]; label="CP rank 15", s =:auto,)
 plot!(;
   xlabel="Inverse Temparature",
   ylabel="SZ Correlation",
   legend=:bottomright,
   title="CPD contraction of 2D network",
 )
-savefig("../CP_ising_ref.pdf")
+savefig("$(@__DIR__)/../experiment_plots/cp_ising_5x6.pdf")
 
 plot(betas, abs.(full_szsz .- cp_szsz[1]); label="CP rank 1")
 plot!(betas, abs.(full_szsz .- cp_szsz[2]); label="CP rank 6")
