@@ -1,20 +1,3 @@
-using ITensorNetworks
-using ITensorNetworks.NamedGraphs
-using ITensorNetworks.NamedGraphs.GraphsExtensions: subgraph
-using ITensorNetworks.NamedGraphs.NamedGraphGenerators: named_grid
-
-using ITensorNetworks: IndsNetwork, delta_network, edges, src, dst, degree, insert_linkinds
-using ITensors
-include("$(@__DIR__)/../ITensorCPD.jl")
-using .ITensorCPD:
-  als_optimize,
-  direct,
-  random_CPD,
-  random_CPD_square_network,
-  row_norm,
-  reconstruct,
-  had_contract
-
 ##################################################################
 # refs
 
@@ -128,10 +111,11 @@ betas = [1.0 - i for i in 0:0.01:1]
 full_szsz = Vector{Float64}([])
 bp_szsz = Vector{Float64}([])
 using ITensorNetworks: BeliefPropagationCache, update, environment
+
 for beta in betas
   tn = ising_network(Float64, IndsNetwork(named_grid((nx, ny))), beta; h)
   tnO = ising_network(
-    Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts=[(5, 5), (5, 6)]
+    Float64, IndsNetwork(named_grid((nx, ny))), beta; h, szverts
   )
 
   using OMEinsumContractionOrders: OMEinsumContractionOrders
@@ -140,38 +124,21 @@ for beta in betas
   szsz = @time contract(tnO; sequence=seq)[] / contract(tn; sequence=seq)[]
   push!(full_szsz, szsz)
 
-  vs_centre = [(4, 4), (4, 5)]
-  s = IndsNetwork(named_grid((nx, ny)); link_space=2)
   tn = ising_network(Float64, s, beta; h)
-  tnO = ising_network(Float64, s, beta; h, szverts=vs_centre)
+  tnO = ising_network(Float64, s, beta; h, szverts)
   tn_bpc = BeliefPropagationCache(tn)
   tn_bpc = update(tn_bpc; maxiter=50)
-  envs = environment(tn_bpc, vs_centre)
+  envs = environment(tn_bpc, szverts)
 
-  numer = contract([[tn[v] for v in vs_centre]; envs]; sequence="automatic")
-  denom = contract([[tnO[v] for v in vs_centre]; envs]; sequence="automatic")
+  numer = contract([[tn[v] for v in szverts]; envs]; sequence="automatic")
+  denom = contract([[tnO[v] for v in szverts]; envs]; sequence="automatic")
 
   szsz_bp_vbetter = denom[] / numer[]
   push!(bp_szsz, szsz_bp_vbetter)
 end
 
-#########################################################################
-# plots
 
-using Plots
-plot(betas, theor[end:-1:1]; label="Infinite Lattice", s=:solid, )
-plot!(betas, full_szsz; label="Exact Contraction", s=:dash,)
-plot!(betas, bp_szsz; label="BP Contraction", s=:dot,)
-plot!(betas, cp_szsz[1]; label="CP rank 1", s=:auto,)
-plot!(betas, cp_szsz[2]; label="CP rank 6", s=:auto, )
-plot!(betas, cp_szsz[3]; label="CP rank 15", s =:auto,)
-plot!(;
-  xlabel="Inverse Temparature",
-  ylabel="SZ Correlation",
-  legend=:bottomright,
-  title="CPD contraction of 2D network",
-)
-savefig("$(@__DIR__)/../../experiment_plots/cp_ising_5x6.pdf")
+
 
 # plot(betas, abs.(full_szsz .- cp_szsz[1]); label="CP rank 1")
 # plot!(betas, abs.(full_szsz .- cp_szsz[2]); label="CP rank 6")
