@@ -1,5 +1,10 @@
 using ITensorNetworks: ITensorNetwork, vertices
 
+# Here we contract a tensor network with a CPD. We assume there
+# exists some leges that connect the network to the CPD but it is
+# also acceptable to have legs which do not contract with the network.
+# the result is 2 vectors of tensors, the first is the set of tensors contracted_cps
+# with the CPD and the second are the set of vectors from the CPD which do not connect to the network.
 function tn_cp_contract(tn::ITensorNetwork, cp::CPD)
   tnp = copy(tn)
   r = ind(cp[],1)
@@ -17,9 +22,13 @@ function tn_cp_contract(tn::ITensorNetwork, cp::CPD)
     end
   end
   v = [cp[x] for x in contracted_cps]
-  return tnp, filter!(x -> x ∉ v, cp.factors)
+  return tnp, filter(x -> x ∉ v, cp.factors)
 end
 
+# This contracts two sets of CPD factor matrices. It will form a 
+# resulting matrix that is rank of cp1 by rank of cp2. The function
+# also returns the set of factor matrices from cp1 that do not connect to cp2
+# and the factor matrices from cp2 that do not connect to cp1.
 function cp_cp_contract(cp1::Vector{ITensor}, cp2::Vector{ITensor})
   r1 = ind(cp1[1], 1)
   r2 = ind(cp2[1], 1)
