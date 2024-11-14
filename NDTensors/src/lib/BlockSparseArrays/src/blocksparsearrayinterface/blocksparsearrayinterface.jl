@@ -22,6 +22,13 @@ function blocksparse_getindex(a::AbstractArray{<:Any,N}, I::Vararg{Int,N}) where
   return a[findblockindex.(axes(a), I)...]
 end
 
+# Fix ambiguity error.
+function blocksparse_getindex(a::AbstractArray{<:Any,0})
+  # TODO: Use `Block()[]` once https://github.com/JuliaArrays/BlockArrays.jl/issues/430
+  # is fixed.
+  return a[BlockIndex{0,Tuple{},Tuple{}}((), ())]
+end
+
 # a[1:2, 1:2]
 # TODO: This definition means that the result of slicing a block sparse array
 # with a non-blocked unit range is blocked. We may want to change that behavior,
@@ -77,12 +84,29 @@ function blocksparse_setindex!(a::AbstractArray{<:Any,N}, value, I::Vararg{Int,N
   return a
 end
 
+# Fix ambiguity error.
+function blocksparse_setindex!(a::AbstractArray{<:Any,0}, value)
+  # TODO: Use `Block()[]` once https://github.com/JuliaArrays/BlockArrays.jl/issues/430
+  # is fixed.
+  a[BlockIndex{0,Tuple{},Tuple{}}((), ())] = value
+  return a
+end
+
 function blocksparse_setindex!(a::AbstractArray{<:Any,N}, value, I::BlockIndex{N}) where {N}
   i = Int.(Tuple(block(I)))
   a_b = blocks(a)[i...]
   a_b[I.α...] = value
   # Set the block, required if it is structurally zero.
   blocks(a)[i...] = a_b
+  return a
+end
+
+# Fix ambiguity error.
+function blocksparse_setindex!(a::AbstractArray{<:Any,0}, value, I::BlockIndex{0})
+  a_b = blocks(a)[]
+  a_b[] = value
+  # Set the block, required if it is structurally zero.
+  blocks(a)[] = a_b
   return a
 end
 
@@ -119,18 +143,20 @@ end
 using ..SparseArrayInterface:
   SparseArrayInterface, AbstractSparseArray, AbstractSparseMatrix
 
-_perm(::PermutedDimsArray{<:Any,<:Any,P}) where {P} = P
+_perm(::PermutedDimsArray{<:Any,<:Any,perm}) where {perm} = perm
+_invperm(::PermutedDimsArray{<:Any,<:Any,<:Any,invperm}) where {invperm} = invperm
 _getindices(t::Tuple, indices) = map(i -> t[i], indices)
 _getindices(i::CartesianIndex, indices) = CartesianIndex(_getindices(Tuple(i), indices))
 
 # Represents the array of arrays of a `PermutedDimsArray`
 # wrapping a block spare array, i.e. `blocks(array)` where `a` is a `PermutedDimsArray`.
-struct SparsePermutedDimsArrayBlocks{T,N,Array<:PermutedDimsArray{T,N}} <:
-       AbstractSparseArray{T,N}
+struct SparsePermutedDimsArrayBlocks{
+  T,N,BlockType<:AbstractArray{T,N},Array<:PermutedDimsArray{T,N}
+} <: AbstractSparseArray{BlockType,N}
   array::Array
 end
 function blocksparse_blocks(a::PermutedDimsArray)
-  return SparsePermutedDimsArrayBlocks(a)
+  return SparsePermutedDimsArrayBlocks{eltype(a),ndims(a),blocktype(parent(a)),typeof(a)}(a)
 end
 function Base.size(a::SparsePermutedDimsArrayBlocks)
   return _getindices(size(blocks(parent(a.array))), _perm(a.array))
@@ -139,7 +165,7 @@ function Base.getindex(
   a::SparsePermutedDimsArrayBlocks{<:Any,N}, index::Vararg{Int,N}
 ) where {N}
   return PermutedDimsArray(
-    blocks(parent(a.array))[_getindices(index, _perm(a.array))...], _perm(a.array)
+    blocks(parent(a.array))[_getindices(index, _invperm(a.array))...], _perm(a.array)
   )
 end
 function SparseArrayInterface.stored_indices(a::SparsePermutedDimsArrayBlocks)
@@ -158,11 +184,12 @@ reverse_index(index::CartesianIndex) = CartesianIndex(reverse(Tuple(index)))
 
 # Represents the array of arrays of a `Transpose`
 # wrapping a block spare array, i.e. `blocks(array)` where `a` is a `Transpose`.
-struct SparseTransposeBlocks{T,Array<:Transpose{T}} <: AbstractSparseMatrix{T}
+struct SparseTransposeBlocks{T,BlockType<:AbstractArray{T},Array<:Transpose{T}} <:
+       AbstractSparseMatrix{BlockType}
   array::Array
 end
 function blocksparse_blocks(a::Transpose)
-  return SparseTransposeBlocks(a)
+  return SparseTransposeBlocks{eltype(a),blocktype(parent(a)),typeof(a)}(a)
 end
 function Base.size(a::SparseTransposeBlocks)
   return reverse(size(blocks(parent(a.array))))
@@ -192,11 +219,12 @@ end
 
 # Represents the array of arrays of a `Adjoint`
 # wrapping a block spare array, i.e. `blocks(array)` where `a` is a `Adjoint`.
-struct SparseAdjointBlocks{T,Array<:Adjoint{T}} <: AbstractSparseMatrix{T}
+struct SparseAdjointBlocks{T,BlockType<:AbstractArray{T},Array<:Adjoint{T}} <:
+       AbstractSparseMatrix{BlockType}
   array::Array
 end
 function blocksparse_blocks(a::Adjoint)
-  return SparseAdjointBlocks(a)
+  return SparseAdjointBlocks{eltype(a),blocktype(parent(a)),typeof(a)}(a)
 end
 function Base.size(a::SparseAdjointBlocks)
   return reverse(size(blocks(parent(a.array))))
@@ -230,8 +258,12 @@ end
 
 # Represents the array of arrays of a `SubArray`
 # wrapping a block spare array, i.e. `blocks(array)` where `a` is a `SubArray`.
-struct SparseSubArrayBlocks{T,N,Array<:SubArray{T,N}} <: AbstractSparseArray{T,N}
+struct SparseSubArrayBlocks{T,N,BlockType<:AbstractArray{T,N},Array<:SubArray{T,N}} <:
+       AbstractSparseArray{BlockType,N}
   array::Array
+end
+function blocksparse_blocks(a::SubArray)
+  return SparseSubArrayBlocks{eltype(a),ndims(a),blocktype(parent(a)),typeof(a)}(a)
 end
 # TODO: Define this as `blockrange(a::AbstractArray, indices::Tuple{Vararg{AbstractUnitRange}})`.
 function blockrange(a::SparseSubArrayBlocks)
@@ -291,8 +323,10 @@ function SparseArrayInterface.sparse_storage(a::SparseSubArrayBlocks)
   return map(I -> a[I], stored_indices(a))
 end
 
-function blocksparse_blocks(a::SubArray)
-  return SparseSubArrayBlocks(a)
+function SparseArrayInterface.getindex_zero_function(a::SparseSubArrayBlocks)
+  # TODO: Base it off of `getindex_zero_function(blocks(parent(a.array))`, but replace the
+  # axes with `axes(a.array)`.
+  return BlockZero(axes(a.array))
 end
 
 to_blocks_indices(I::BlockSlice{<:BlockRange{1}}) = Int.(I.block)
@@ -305,5 +339,4 @@ function blocksparse_blocks(
 end
 
 using BlockArrays: BlocksView
-# TODO: Is this correct in general?
-SparseArrayInterface.nstored(a::BlocksView) = 1
+SparseArrayInterface.nstored(a::BlocksView) = length(a)

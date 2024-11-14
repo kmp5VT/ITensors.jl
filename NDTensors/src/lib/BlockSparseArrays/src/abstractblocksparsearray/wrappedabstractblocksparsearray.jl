@@ -9,6 +9,7 @@ using BlockArrays:
   mortar,
   unblock
 using SplitApplyCombine: groupcount
+using ..TypeParameterAccessors: similartype
 
 const WrappedAbstractBlockSparseArray{T,N} = WrappedArray{
   T,N,AbstractBlockSparseArray,AbstractBlockSparseArray{T,N}
@@ -91,12 +92,21 @@ function Base.getindex(
 )
   return ArrayLayouts.layout_getindex(a, I...)
 end
+# Fixes ambiguity error.
+function Base.getindex(a::BlockSparseArrayLike{<:Any,0})
+  return ArrayLayouts.layout_getindex(a)
+end
 
 # TODO: Define `blocksparse_isassigned`.
 function Base.isassigned(
   a::BlockSparseArrayLike{<:Any,N}, index::Vararg{Block{1},N}
 ) where {N}
   return isassigned(blocks(a), Int.(index)...)
+end
+
+# Fix ambiguity error.
+function Base.isassigned(a::BlockSparseArrayLike{<:Any,0})
+  return isassigned(blocks(a))
 end
 
 function Base.isassigned(a::BlockSparseArrayLike{<:Any,N}, index::Block{N}) where {N}
@@ -148,6 +158,13 @@ function Base.similar(
   return similar(arraytype, eltype(arraytype), axes)
 end
 
+# Fixes ambiguity error.
+function Base.similar(
+  arraytype::Type{<:BlockSparseArrayLike}, axes::Tuple{Base.OneTo,Vararg{Base.OneTo}}
+)
+  return similar(arraytype, eltype(arraytype), axes)
+end
+
 # Needed by `BlockArrays` matrix multiplication interface
 # TODO: This fixes an ambiguity error with `OffsetArrays.jl`, but
 # is only appears to be needed in older versions of Julia like v1.6.
@@ -187,6 +204,12 @@ function Base.similar(
   return similar(arraytype, eltype(arraytype), axes)
 end
 
+function blocksparse_similar(a, elt::Type, axes::Tuple)
+  return BlockSparseArray{elt,length(axes),similartype(blocktype(a), elt, axes)}(
+    undef, axes
+  )
+end
+
 # Needed by `BlockArrays` matrix multiplication interface
 # TODO: Define a `blocksparse_similar` function.
 function Base.similar(
@@ -194,21 +217,21 @@ function Base.similar(
   elt::Type,
   axes::Tuple{Vararg{AbstractUnitRange{<:Integer}}},
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(arraytype, elt, axes)
 end
 
 # TODO: Define a `blocksparse_similar` function.
 function Base.similar(
   a::BlockSparseArrayLike, elt::Type, axes::Tuple{Vararg{AbstractUnitRange{<:Integer}}}
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
 end
 
-# TODO: Define a `blocksparse_similar` function.
+# Fixes ambiguity error.
+function Base.similar(a::BlockSparseArrayLike, elt::Type, axes::Tuple{})
+  return blocksparse_similar(a, elt, axes)
+end
+
 # Fixes ambiguity error with `BlockArrays`.
 function Base.similar(
   a::BlockSparseArrayLike,
@@ -217,21 +240,16 @@ function Base.similar(
     AbstractBlockedUnitRange{<:Integer},Vararg{AbstractBlockedUnitRange{<:Integer}}
   },
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
 end
 
-# TODO: Define a `blocksparse_similar` function.
 # Fixes ambiguity error with `OffsetArrays`.
 function Base.similar(
   a::BlockSparseArrayLike,
   elt::Type,
   axes::Tuple{AbstractUnitRange{<:Integer},Vararg{AbstractUnitRange{<:Integer}}},
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
 end
 
 # Fixes ambiguity error with `BlockArrays`.
@@ -240,9 +258,7 @@ function Base.similar(
   elt::Type,
   axes::Tuple{AbstractBlockedUnitRange{<:Integer},Vararg{AbstractUnitRange{<:Integer}}},
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
 end
 
 # Fixes ambiguity errors with BlockArrays.
@@ -255,15 +271,31 @@ function Base.similar(
     Vararg{AbstractUnitRange{<:Integer}},
   },
 )
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
 end
 
-# TODO: Define a `blocksparse_similar` function.
 # Fixes ambiguity error with `StaticArrays`.
 function Base.similar(
   a::BlockSparseArrayLike, elt::Type, axes::Tuple{Base.OneTo,Vararg{Base.OneTo}}
 )
-  # TODO: Make generic for GPU, maybe using `blocktype`.
-  # TODO: For non-block axes this should output `Array`.
-  return BlockSparseArray{elt}(undef, axes)
+  return blocksparse_similar(a, elt, axes)
+end
+
+# TODO: Implement this in a more generic way using a smarter `copyto!`,
+# which is ultimately what `Array{T,N}(::AbstractArray{<:Any,N})` calls.
+# These are defined for now to avoid scalar indexing issues when there
+# are blocks on GPU.
+function Base.Array{T,N}(a::BlockSparseArrayLike{<:Any,N}) where {T,N}
+  # First make it dense, then move to CPU.
+  # Directly copying to CPU causes some issues with
+  # scalar indexing on GPU which we have to investigate.
+  a_dest = similartype(blocktype(a), T)(undef, size(a))
+  a_dest .= a
+  return Array{T,N}(a_dest)
+end
+function Base.Array{T}(a::BlockSparseArrayLike) where {T}
+  return Array{T,ndims(a)}(a)
+end
+function Base.Array(a::BlockSparseArrayLike)
+  return Array{eltype(a)}(a)
 end
