@@ -83,3 +83,44 @@ function ring_inds(start::Int, nx::Int, ny::Int)
   end
   return Tuple(unique!(inds))
 end
+
+function contract_loops(r::Int, tn, nx, ny, i, vs_centre)
+  # grab the furthest most edge
+  sout = subgraph(tn, ring_inds(1, nx, ny))
+  # And the next inside edge
+  sin = subgraph(tn, ring_inds(2, nx, ny))
+  
+  fit = ITensorCPD.FitCheck(1e-4,10, norm_of_loop(sin))
+  # Compute the CPD of the inside edge
+  cpr = Index(r, "CP_rank_2")
+  cp_guess = ITensorCPD.random_CPD_ITensorNetwork(sin, cpr)
+  cpopt_in = ITensorCPD.als_optimize(cp_guess, cpr; maxiters=10);
+
+  # contract the legs going out with the outside graph and also keep the legs goin inside
+  outer, to_core = ITensorCPD.tn_cp_contract(sout, cpopt_in);
+  # contract all of the tensors on the outer edge (there are now just r chains so this is cheap)
+  outside_edge = itensor(array(ITensorCPD.had_contract(outer.data_graph.vertex_data.values, cpr)) .* array(cpopt_in[]), cpr) 
+  # outside edge is simply a vector now.
+
+  # loop over all of the next inner shells except for the center shell
+  center = maximum([nx,ny]) ÷ 2
+  for sg in 3:(center - 1)
+    # grab the next inner subgraph
+    sin = subgraph(tn, ring_inds(sg, nx, ny))
+
+    # compute the CPD of this next shell
+    fit = ITensorCPD.FitCheck(1e-4,10, norm_of_loop(sin))
+    cpr = Index(r, "cp_rank_$(sg)")
+    cp_guess = ITensorCPD.random_CPD_ITensorNetwork(sin, cpr)
+    cpopt_in = ITensorCPD.als_optimize(cp_guess, cpr; maxiters=10);
+
+    # contract the to_core
+    outer, _, to_core = ITensorCPD.cp_cp_contract(to_core, cpopt_in.factors);
+    outside_edge = itensor(array(outside_edge * outer) .* array(cpopt_in[]), cpr)
+  end
+
+    core = ITensorCPD.had_contract([to_core...], cpr)
+    return outside_edge * core
+    # val = (outside_edge * core)[]
+    # return vals[i] = val
+end
