@@ -82,6 +82,11 @@ function sparse_getindex(a::AbstractArray, I::Vararg{Int})
   return sparse_getindex(a, CartesianIndex(I))
 end
 
+# Fix ambiguity error.
+function sparse_getindex(a::AbstractArray{<:Any,0})
+  return sparse_getindex(a, CartesianIndex())
+end
+
 # Linear indexing
 function sparse_getindex(a::AbstractArray, I::CartesianIndex{1})
   return sparse_getindex(a, CartesianIndices(a)[I])
@@ -132,9 +137,28 @@ function sparse_setindex!(a::AbstractArray, value, I::Vararg{Int})
   return a
 end
 
+# Fix ambiguity error
+function sparse_setindex!(a::AbstractArray, value)
+  sparse_setindex!(a, value, CartesianIndex())
+  return a
+end
+
 # Linear indexing
 function sparse_setindex!(a::AbstractArray, value, I::CartesianIndex{1})
   sparse_setindex!(a, value, CartesianIndices(a)[I])
+  return a
+end
+
+# Slicing
+# TODO: Make this handle more general slicing operations,
+# base it off of `ArrayLayouts.sub_materialize`.
+function sparse_setindex!(a::AbstractArray, value, I::AbstractUnitRange...)
+  inds = CartesianIndices(I)
+  for i in stored_indices(value)
+    if i in CartesianIndices(inds)
+      a[inds[i]] = value[i]
+    end
+  end
   return a
 end
 
@@ -161,7 +185,10 @@ end
 function sparse_isassigned(a::AbstractArray{<:Any,N}, I::CartesianIndex{N}) where {N}
   return sparse_isassigned(a, Tuple(I)...)
 end
-function sparse_isassigned(a::AbstractArray{<:Any,N}, I::Vararg{Integer,N}) where {N}
+function sparse_isassigned(a::AbstractArray, I::Integer...)
+  # Check trailing dimensions are one. This is needed in generic
+  # AbstractArray show when `a isa AbstractVector`.
+  all(d -> isone(I[d]), (ndims(a) + 1):length(I)) || return false
   return all(dim -> I[dim] ∈ axes(a, dim), 1:ndims(a))
 end
 

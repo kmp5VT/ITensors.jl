@@ -1,6 +1,5 @@
 @eval module $(gensym())
-using Compat: Returns
-using Test: @test, @testset, @test_broken
+using Test: @test, @testset
 using BlockArrays:
   AbstractBlockArray, Block, BlockedOneTo, blockedrange, blocklengths, blocksize
 using NDTensors.BlockSparseArrays: BlockSparseArray, block_nstored
@@ -15,6 +14,7 @@ using NDTensors.GradedAxes:
   isdual
 using NDTensors.LabelledNumbers: label
 using NDTensors.SparseArrayInterface: nstored
+using NDTensors.SymmetrySectors: U1
 using NDTensors.TensorAlgebra: fusedims, splitdims
 using LinearAlgebra: adjoint
 using Random: randn!
@@ -25,13 +25,6 @@ function blockdiagonal!(f, a::AbstractArray)
   end
   return a
 end
-
-struct U1
-  n::Int
-end
-GradedAxes.dual(c::U1) = U1(-c.n)
-GradedAxes.fuse_labels(c1::U1, c2::U1) = U1(c1.n + c2.n)
-Base.isless(c1::U1, c2::U1) = isless(c1.n, c2.n)
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 @testset "BlockSparseArraysGradedAxesExt (eltype=$elt)" for elt in elts
@@ -66,8 +59,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       @test blocksize(b) == (2, 2, 2, 2)
       @test blocklengths.(axes(b)) == ([2, 2], [2, 2], [2, 2], [2, 2])
       @test nstored(b) == 256
-      # TODO: Fix this for `BlockedArray`.
-      @test_broken block_nstored(b) == 16
+      @test block_nstored(b) == 16
       for i in 1:ndims(a)
         @test axes(b, i) isa BlockedOneTo{Int}
       end
@@ -224,10 +216,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       @test size(a[I, I]) == (1, 1)
       @test isdual(axes(a[I, :], 2))
       @test isdual(axes(a[:, I], 1))
-      @test_broken isdual(axes(a[I, :], 1))
-      @test_broken isdual(axes(a[:, I], 2))
-      @test_broken isdual(axes(a[I, I], 1))
-      @test_broken isdual(axes(a[I, I], 2))
+      @test isdual(axes(a[I, :], 1))
+      @test isdual(axes(a[:, I], 2))
+      @test isdual(axes(a[I, I], 1))
+      @test isdual(axes(a[I, I], 2))
     end
 
     @testset "dual GradedUnitRange" begin
@@ -250,10 +242,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       @test size(a[I, I]) == (1, 1)
       @test isdual(axes(a[I, :], 2))
       @test isdual(axes(a[:, I], 1))
-      @test_broken isdual(axes(a[I, :], 1))
-      @test_broken isdual(axes(a[:, I], 2))
-      @test_broken isdual(axes(a[I, I], 1))
-      @test_broken isdual(axes(a[I, I], 2))
+      @test isdual(axes(a[I, :], 1))
+      @test isdual(axes(a[:, I], 2))
+      @test isdual(axes(a[I, I], 1))
+      @test isdual(axes(a[I, I], 2))
     end
 
     @testset "dual BlockedUnitRange" begin    # self dual
@@ -293,6 +285,15 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       for ax in axes(b)
         @test ax isa typeof(dual(r))
       end
+
+      @test !isdual(axes(a, 1))
+      @test !isdual(axes(a, 2))
+      @test isdual(axes(a', 1))
+      @test isdual(axes(a', 2))
+      @test isdual(axes(b, 1))
+      @test isdual(axes(b, 2))
+      @test isdual(axes(copy(a'), 1))
+      @test isdual(axes(copy(a'), 2))
 
       I = [Block(1)[1:1]]
       @test size(b[I, :]) == (1, 4)
