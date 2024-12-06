@@ -31,7 +31,10 @@ function LinearAlgebra.eigen(A::Exposed{<:MtlMatrix})
     ),
     Dcpu,
   )
-  U = adapt(unwrap_array_type(A), Ucpu)
+  U = adapt(set_type_parameters(
+    unwrap_array_type(A), (eltype, ndims), type_parameters(Ucpu, (eltype, ndims))
+  ), 
+  Ucpu)
   return D, U
 end
 
