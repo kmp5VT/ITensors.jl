@@ -123,6 +123,11 @@ end
 
     ## Test dot on GPU
     @test dot(t, A) ≈ dot(dev(array(t)), array(A)) rtol = sqrt(eps(elt))
+    
+    NDTensors.outer!(A, t,t);
+    for i in NDTensors.cpu(A)
+       @test i == one(elt)
+    end
 end
 nothing
 end
