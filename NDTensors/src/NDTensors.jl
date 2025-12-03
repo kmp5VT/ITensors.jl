@@ -247,12 +247,12 @@ _using_CuTensorBS = false
 using_CuTensorBS() = _using_CuTensorBS
 
 function enable_CuTensorBS()
-    @global _using_CuTensorBS = true
+    NDTensors._using_CuTensorBS = true
     return nothing
 end
 
-function enable_CuTensorBS()
-    @global _using_CuTensorBS = false
+function disable_CuTensorBS()
+    NDTensors._using_CuTensorBS = false
     return nothing
 end
 
