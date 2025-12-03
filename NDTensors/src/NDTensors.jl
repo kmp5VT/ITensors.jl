@@ -241,4 +241,19 @@ end
 
 function backend_octavian end
 
+
+_using_CuTensorBS = false
+
+using_CuTensorBS() = _using_CuTensorBS
+
+function enable_CuTensorBS()
+    @global _using_CuTensorBS = true
+    return nothing
+end
+
+function enable_CuTensorBS()
+    @global _using_CuTensorBS = false
+    return nothing
+end
+
 end # module NDTensors
