@@ -1,10 +1,9 @@
 function outer!(
         R::DenseTensor{<:Number, NR}, T1::DiagTensor{<:Number, N1}, T2::DiagTensor{<:Number, N2}
     ) where {NR, N1, N2}
-    for i1 in 1:diaglength(T1), i2 in 1:diaglength(T2)
-        indsR = CartesianIndex{NR}(ntuple(r -> r ≤ N1 ? i1 : i2, Val(NR)))
-        R[indsR] = getdiagindex(T1, i1) * getdiagindex(T2, i2)
-    end
+    t1 = T1.storage.data
+    t2 = T2.storage.data
+    array(R) .= t1 .* t2'
     return R
 end
 
