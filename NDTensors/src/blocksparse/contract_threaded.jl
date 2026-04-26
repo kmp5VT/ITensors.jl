@@ -74,8 +74,7 @@ function contract_blocks(
     end
 end
 
-function contract!(
-        ::Algorithm"threaded_folds",
+function contract_blocksparse_threaded_folds!(
         R::BlockSparseTensor,
         labelsR,
         tensor1::BlockSparseTensor,

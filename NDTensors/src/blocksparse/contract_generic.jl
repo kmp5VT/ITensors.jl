@@ -71,19 +71,21 @@ function contract!(
     )
     return R
 end
-function _contract!(R::Exposed,
+function _contract!(
+        R::Exposed,
         labelsR,
         tensor1::Exposed,
         labelstensor1,
         tensor2::Exposed,
         labelstensor2,
         grouped_contraction_plan,
-        executor,
+        executor
     )
-    _contract!(unexpose(R), labelsR, 
-    unexpose(tensor1), labelstensor1,
-    unexpose(tensor2), labelstensor2,
-    grouped_contraction_plan,executor
+    return _contract!(
+        unexpose(R), labelsR,
+        unexpose(tensor1), labelstensor1,
+        unexpose(tensor2), labelstensor2,
+        grouped_contraction_plan, executor
     )
 end
 # Function barrier to improve type stability,

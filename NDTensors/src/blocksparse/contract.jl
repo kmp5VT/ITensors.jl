@@ -1,22 +1,9 @@
 using .BackendSelection: @Algorithm_str, Algorithm
 
-function contract(
-        tensor1::BlockSparseTensor,
-        labelstensor1,
-        tensor2::BlockSparseTensor,
-        labelstensor2,
-        labelsR = contract_labels(labelstensor1, labelstensor2)
-    )
-    R, contraction_plan = contraction_output(
-        tensor1, labelstensor1, tensor2, labelstensor2, labelsR
-    )
-    R = contract!(
-        R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
-    )
-    return R
-end
-
-# Determine the contraction output and block contractions
+# Determine the contraction output and block contractions. Bundles `R` and
+# the contraction plan in a `TensorAndContractionPlan` so the plan can flow
+# through the universal `contract!(dest, ...)` entry without changing the
+# entry-point signature across tensor types.
 function contraction_output(
         tensor1::BlockSparseTensor,
         labelstensor1,
@@ -38,7 +25,7 @@ function contraction_output(
         labelsR
     )
     R = similar(TensorR, blockoffsetsR, indsR)
-    return R, contraction_plan
+    return TensorAndContractionPlan(R, contraction_plan)
 end
 
 function contract_blockoffsets(
@@ -55,22 +42,23 @@ function contract_blockoffsets(
 end
 
 function contract!(
-        R::BlockSparseTensor,
+        ::NativeContract,
+        dest::TensorAndContractionPlan{T},
         labelsR,
         tensor1::BlockSparseTensor,
         labelstensor1,
         tensor2::BlockSparseTensor,
-        labelstensor2,
-        contraction_plan
-    )
-    if isempty(contraction_plan)
-        return R
-    end
-    alg = Algorithm"sequential"()
+        labelstensor2
+    ) where {T <: BlockSparseTensor}
+    R = dest.tensor
+    contraction_plan = dest.contraction_plan
+    isempty(contraction_plan) && return R
     if using_threaded_blocksparse() && nthreads() > 1
-        alg = Algorithm"threaded_folds"()
+        return contract_blocksparse_threaded_folds!(
+            R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
+        )::T
     end
-    return contract!(
-        alg, R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
-    )
+    return contract_blocksparse_sequential!(
+        R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
+    )::T
 end

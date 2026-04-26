@@ -158,6 +158,7 @@ function _contract_scalar!(
 end
 
 function contract!(
+        ::NativeContract,
         R::DenseTensor{ElR, NR},
         labelsR,
         T1::DenseTensor{ElT1, N1},

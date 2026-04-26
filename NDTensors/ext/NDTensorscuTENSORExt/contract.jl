@@ -1,96 +1,138 @@
 using Base: ReshapedArray
-using NDTensors.Expose: Exposed, expose, unexpose
-using NDTensors: NDTensors, BlockSparseTensor, DenseTensor, array,
-blockdims, data, eachnzblock, inds, nblocks, nzblocks
+using NDTensors.Expose: expose
+using NDTensors: NDTensors, BlockSparseTensor, ContractAlgorithm, Dense, DenseTensor,
+    NativeContract, TensorAndContractionPlan, array, blockdim, blockdims, contract!, data,
+    datatype, default_contract_algorithm, eachnzblock, inds, is_applicable, nblocks,
+    nnzblocks, nzblocks, with_contract_algorithm
 using cuTENSOR: cuTENSOR, CuArray, CuTensor
 
-# Handle cases that can't be handled by `cuTENSOR.jl`
-# right now.
-function to_zero_offset_cuarray(a::CuArray)
-    return iszero(a.offset) ? a : copy(a)
-end
-function to_zero_offset_cuarray(a::ReshapedArray)
-    return copy(expose(a))
-end
+# ============================================================
+# cuTENSOR block-sparse contraction
+# ============================================================
 
-function block_extents(ind)
-    return ntuple(i -> ind.space[i].second, nblocks(ind))
-end
+"""
+    cuTENSORBlockSparse <: NDTensors.ContractAlgorithm
 
-#### Functions to turn Tensors into BlockSparseCuTensors for contraction
-function to_cuTensorBS(T::BlockSparseTensor)
-    blocks_t1 = []
-    # T = tensor(target)
-    for blockT in eachnzblock(T)
-        offsetT = NDTensors.offset(T, blockT)
-        blockdimsT = blockdims(T, blockT)
-        blockdimT = prod(blockdimsT)
-        push!(blocks_t1, @view data(T)[(offsetT + 1):(offsetT + blockdimT)])
-    end
-    blocks_t1 = Vector{typeof(blocks_t1[1])}(blocks_t1)
-    block_extents_t1 = [block_extents(idx) for idx in inds(T)] ## This is sections
-    nzblock_coords_t1 = [Int64.(x.data) for x in nzblocks(T)]
-    block_per_mode_t1 = length.(block_extents_t1)
-    is = [i for i in 1:ndims(T)]
-    return cuTENSOR.CuTensorBS(blocks_t1, block_per_mode_t1, block_extents_t1, nzblock_coords_t1, is);
-end
+Algorithm tag for cuTENSOR's batched block-sparse contraction path.
+Applies to two `BlockSparseTensor`s whose backing data type is a
+`CuArray`. Selected via [`with_cutensorblocksparse`](@ref).
+"""
+struct cuTENSORBlockSparse <: ContractAlgorithm end
 
-function NDTensors._contract!(R::Exposed{<:CuArray, <:BlockSparseTensor},
-        labelsR,
-        tensor1::Exposed{<:CuArray, <:BlockSparseTensor},
-        labelstensor1,
-        tensor2::Exposed{<:CuArray, <:BlockSparseTensor},
-        labelstensor2,
-        grouped_contraction_plan,
-        executor,
+NDTensors.is_applicable(::cuTENSORBlockSparse, ::Type, ::Type) = false
+function NDTensors.is_applicable(
+        ::cuTENSORBlockSparse,
+        T1::Type{<:BlockSparseTensor},
+        T2::Type{<:BlockSparseTensor}
     )
-    N1 = ndims(unexpose(tensor1)) 
-    N2 = ndims(unexpose(tensor2)) 
-    NR = ndims(unexpose(R)) 
-    if NDTensors.using_CuTensorBS() && (N1 > 0) && (N2 > 0) && (NR > 0)
-        # println("Using new function")
-        cuR = ITensor_to_cuTensorBS(unexpose(R))
-        cutensor1 = ITensor_to_cuTensorBS(unexpose(tensor1))
-        cutensor2 = ITensor_to_cuTensorBS(unexpose(tensor2))
-
-        cuR.inds = [labelsR...]
-        cutensor1.inds = [labelstensor1...]
-        cutensor2.inds = [labelstensor2...]
-
-        cuTENSOR.mul!(cuR, cutensor1, cutensor2, 1.0, 0.0)
-        return R
-    else
-        return NDTensors._contract!(
-        unexpose(R),
-        labelsR,
-        unexpose(tensor1),
-        labelstensor1,
-        unexpose(tensor2),
-        labelstensor2,
-        grouped_contraction_plan,
-        executor,
-        )
-    end
+    return datatype(T1) <: CuArray && datatype(T2) <: CuArray
 end
 
 function NDTensors.contract!(
-        exposedR::Exposed{<:CuArray, <:DenseTensor},
+        ::cuTENSORBlockSparse,
+        dest::TensorAndContractionPlan{T},
         labelsR,
-        exposedT1::Exposed{<:CuArray, <:DenseTensor},
-        labelsT1,
-        exposedT2::Exposed{<:CuArray, <:DenseTensor},
-        labelsT2,
-        α::Number = one(Bool),
-        β::Number = zero(Bool)
+        tensor1::BlockSparseTensor,
+        labelstensor1,
+        tensor2::BlockSparseTensor,
+        labelstensor2
+    ) where {T <: BlockSparseTensor}
+    R = dest.tensor
+    cuR = to_cuTensorBS(R, labelsR)
+    cuT1 = to_cuTensorBS(tensor1, labelstensor1)
+    cuT2 = to_cuTensorBS(tensor2, labelstensor2)
+    cuTENSOR.mul!(cuR, cuT1, cuT2, one(eltype(R)), zero(eltype(R)))
+    return R::T
+end
+
+"""
+    with_cutensorblocksparse(f, enable::Bool = true)
+
+Run `f()` with cuTENSOR's batched block-sparse contraction backend
+preferred for any contractions inside the block. When `enable = false`,
+runs `f()` unchanged.
+
+Equivalent to `with_contract_algorithm(f, cuTENSORBlockSparse())`. The
+preference applies only when [`is_applicable`](@ref NDTensors.is_applicable)
+returns `true` for the inputs at hand (CUDA-backed `BlockSparseTensor`s);
+other contractions inside the scope fall through to the default.
+"""
+function with_cutensorblocksparse(f, enable::Bool = true)
+    return enable ? with_contract_algorithm(f, cuTENSORBlockSparse()) : f()
+end
+
+# Build a cuTENSOR.CuTensorBS from a NDTensors BlockSparseTensor, with
+# `labels` becoming the cuTENSOR mode labels at construction time.
+function to_cuTensorBS(T::BlockSparseTensor, labels)
+    blocks = map(eachnzblock(T)) do b
+        offset = NDTensors.offset(T, b)
+        len = prod(blockdims(T, b))
+        return @view data(T)[(offset + 1):(offset + len)]
+    end
+    block_extents = [[blockdim(idx, i) for i in 1:nblocks(idx)] for idx in inds(T)]
+    nzblock_coords = [Int64.(x.data) for x in nzblocks(T)]
+    block_per_mode = length.(block_extents)
+    return cuTENSOR.CuTensorBS(
+        blocks, block_per_mode, block_extents, nzblock_coords, collect(labels)
     )
-    R, T1, T2 = unexpose.((exposedR, exposedT1, exposedT2))
+end
+
+# ============================================================
+# cuTENSOR dense contraction
+# ============================================================
+
+"""
+    cuTENSORDense <: NDTensors.ContractAlgorithm
+
+Algorithm tag for cuTENSOR's dense contraction path. Applies to two
+`DenseTensor`s whose backing data type is a `CuArray`. Set as the
+default for that input shape when this extension is loaded (via the
+`default_contract_algorithm` overload below), so dense CUDA contractions
+automatically use cuTENSOR.
+"""
+struct cuTENSORDense <: ContractAlgorithm end
+
+NDTensors.is_applicable(::cuTENSORDense, ::Type, ::Type) = false
+function NDTensors.is_applicable(
+        ::cuTENSORDense,
+        T1::Type{<:DenseTensor{<:Any, <:Any, <:Dense{<:Any, <:CuArray}}},
+        T2::Type{<:DenseTensor{<:Any, <:Any, <:Dense{<:Any, <:CuArray}}}
+    )
+    return true
+end
+
+# Loading this extension makes `cuTENSORDense` the default for dense CUDA
+# contractions (matching the behavior of the previous `Exposed{<:CuArray,
+# <:DenseTensor}` direct-dispatch method).
+function NDTensors.default_contract_algorithm(
+        ::Type{<:DenseTensor{<:Any, <:Any, <:Dense{<:Any, <:CuArray}}},
+        ::Type{<:DenseTensor{<:Any, <:Any, <:Dense{<:Any, <:CuArray}}}
+    )
+    return cuTENSORDense()
+end
+
+# Handle CuArrays cuTENSOR.jl can't accept directly (non-zero offsets,
+# reshaped views).
+to_zero_offset_cuarray(a::CuArray) = iszero(a.offset) ? a : copy(a)
+to_zero_offset_cuarray(a::ReshapedArray) = copy(expose(a))
+
+function NDTensors.contract!(
+        ::cuTENSORDense,
+        R::DenseTensor,
+        labelsR,
+        T1::DenseTensor,
+        labelsT1,
+        T2::DenseTensor,
+        labelsT2,
+        α::Number = one(eltype(R)),
+        β::Number = zero(eltype(R))
+    )
     zoffR = iszero(array(R).offset)
     arrayR = zoffR ? array(R) : copy(array(R))
     arrayT1 = to_zero_offset_cuarray(array(T1))
     arrayT2 = to_zero_offset_cuarray(array(T2))
-    # Promote to a common type. This is needed because as of
-    # cuTENSOR.jl v5.4.2, cuTENSOR contraction only performs
-    # limited sets of type promotions of inputs, see:
+    # Promote inputs to a common type. cuTENSOR contraction only performs
+    # limited promotions of input element types, see e.g.
     # https://github.com/JuliaGPU/CUDA.jl/blob/v5.4.2/lib/cutensor/src/types.jl#L11-L19
     elt = promote_type(eltype.((arrayR, arrayT1, arrayT2))...)
     if elt !== eltype(arrayR)
@@ -107,9 +149,8 @@ function NDTensors.contract!(
         cuTENSOR.mul!(cuR, cuT1, cuT2, α, β)
     catch e
         e isa cuTENSOR.CUTENSORError || rethrow()
-        # Fall back to default contraction (cuBLAS) for operations
-        # cuTENSOR doesn't support.
-        NDTensors.contract!(R, labelsR, T1, labelsT1, T2, labelsT2, α, β)
+        # Fall back to the native (cuBLAS-loop) path for ops cuTENSOR doesn't support.
+        contract!(NativeContract(), R, labelsR, T1, labelsT1, T2, labelsT2, α, β)
         return R
     end
     if !zoffR

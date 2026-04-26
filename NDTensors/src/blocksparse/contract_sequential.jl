@@ -40,8 +40,7 @@ function contract_blockoffsets(
     return blockoffsetsR, contraction_plan
 end
 
-function contract!(
-        ::Algorithm"sequential",
+function contract_blocksparse_sequential!(
         R::BlockSparseTensor,
         labelsR,
         tensor1::BlockSparseTensor,
@@ -60,8 +59,7 @@ using .Expose: expose
 ###########################################################################
 # Old version
 # TODO: DELETE, keeping around for now for testing/benchmarking.
-function contract!(
-        ::Algorithm"sequential_deprecated",
+function contract_blocksparse_sequential_deprecated!(
         R::BlockSparseTensor{ElR, NR},
         labelsR,
         T1::BlockSparseTensor{ElT1, N1},

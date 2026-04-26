@@ -53,6 +53,7 @@ include("dims.jl")
 include("tensor/set_types.jl")
 include("tensor/similar.jl")
 include("adapt.jl")
+include("contract_algorithm.jl")
 include("tensoroperations/generic_tensor_operations.jl")
 include("tensoroperations/contraction_logic.jl")
 include("abstractarray/tensoralgebra/contract.jl")
@@ -240,20 +241,5 @@ function disable_tblis()
 end
 
 function backend_octavian end
-
-
-_using_CuTensorBS = false
-
-using_CuTensorBS() = _using_CuTensorBS
-
-function enable_CuTensorBS()
-    NDTensors._using_CuTensorBS = true
-    return nothing
-end
-
-function disable_CuTensorBS()
-    NDTensors._using_CuTensorBS = false
-    return nothing
-end
 
 end # module NDTensors
