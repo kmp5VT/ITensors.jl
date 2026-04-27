@@ -80,6 +80,30 @@ with_contract_algorithm(MyAlg()) do
     return A * B    # uses MyAlg if applicable; otherwise default
 end
 ```
+
+## Nested scopes overwrite, they do not compose
+
+Nesting two `with_contract_algorithm` blocks does *not* combine the two
+preferences — the inner scope shadows the outer for the duration of the
+inner block (this is `Base.ScopedValues.@with` semantics, not a bug):
+
+```julia
+with_contract_algorithm(A()) do
+    with_contract_algorithm(B()) do
+        # only B() is the scoped preference here; A() is shadowed
+    end
+    # A() is restored
+end
+```
+
+To express "prefer A first, then B, then default" inside a single scope,
+use [`FallbackContract`](@ref):
+
+```julia
+with_contract_algorithm(FallbackContract(A(), B())) do
+    # tries A first, then B; falls back to default if neither applies
+end
+```
 """
 function with_contract_algorithm(f, alg::ContractAlgorithm)
     return @with CURRENT_CONTRACT_ALGORITHM => alg f()
@@ -147,6 +171,48 @@ function _select_contract_algorithm(alg::ContractAlgorithm, t1, t2)
     !is_applicable(alg, t1, t2) && return default_contract_algorithm(t1, t2)
     return alg
 end
+
+"""
+    FallbackContract(algs::ContractAlgorithm...) <: ContractAlgorithm
+
+A composite algorithm that tries each of `algs` in order, first-match-
+wins, falling back to [`default_contract_algorithm`](@ref) if none of
+them are applicable. Used to express "prefer A; if A doesn't apply, try
+B; otherwise default" within a single
+[`with_contract_algorithm`](@ref) scope.
+
+Nested `with_contract_algorithm` scopes do *not* compose — an inner
+scope shadows the outer (intended `ScopedValue` semantics, not a bug).
+To layer multiple algorithms in one scope, use `FallbackContract`:
+
+```julia
+with_contract_algorithm(FallbackContract(TBLIS(), cuTENSORBlockSparse())) do
+    return A * B    # tries TBLIS for dense BlasReal, cuTENSORBlockSparse for
+    # CUDA block-sparse, otherwise NativeContract
+end
+```
+"""
+struct FallbackContract{Algs <: Tuple{Vararg{ContractAlgorithm}}} <: ContractAlgorithm
+    algs::Algs
+end
+FallbackContract(algs::ContractAlgorithm...) = FallbackContract(algs)
+
+# When a `FallbackContract` is the scoped preference, walk its component
+# algorithms in order and pick the first applicable one; if none claims
+# the inputs, fall through to the trait-dispatched default.
+function _select_contract_algorithm(fc::FallbackContract, t1, t2)
+    for alg in fc.algs
+        is_applicable(alg, t1, t2) && return alg
+    end
+    return default_contract_algorithm(t1, t2)
+end
+
+# `FallbackContract` is itself "always applicable" since it ultimately
+# falls back to `default_contract_algorithm`. (`is_applicable` is
+# consulted *before* `_select_contract_algorithm`, so without this
+# overload a scoped `FallbackContract` would be rejected by the
+# scoped-preference applicability gate that tests narrow algorithms.)
+is_applicable(::FallbackContract, ::Type, ::Type) = true
 
 """
     TensorAndContractionPlan{T<:Tensor, P}
