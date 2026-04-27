@@ -1,5 +1,26 @@
 using Base.ScopedValues: @with, ScopedValue
 
+# The shape of this scaffold borrows from two prior-art conceptual
+# patterns in the Julia tensor / linear-algebra ecosystem:
+#
+# - MatrixAlgebraKit.jl's `select_algorithm(f, A, alg; kwargs...)` with
+#   an `AbstractAlgorithm` supertype and a trait-dispatched
+#   `default_algorithm(f, ::Type)` fallback.
+# - TensorOperations.jl's `select_backend(tensorfun, tensors...)` with
+#   an `AbstractBackend` supertype, a `DefaultBackend` sentinel, and
+#   per-tensor-type overloads.
+#
+# Both let callers pass an explicit choice or fall through to
+# auto-selection by input type. Neither covers a *scoped default* — i.e.
+# preferring an algorithm for a block of code without threading it
+# through every call inside. The addition here is the
+# `CURRENT_CONTRACT_ALGORITHM::ScopedValue` and `with_contract_algorithm`
+# layer, plus the per-algorithm `is_applicable` predicate that lets a
+# scoped preference fall through cleanly when it can't handle the
+# inputs at hand. `select_contract_algorithm` glues them with a fixed
+# precedence: explicit arg → scoped-if-applicable → trait-dispatched
+# default.
+
 """
     abstract type ContractAlgorithm
 
@@ -29,7 +50,7 @@ struct DefaultContract <: ContractAlgorithm end
 """
     NativeContract <: ContractAlgorithm
 
-Tag for the native NDTensors contract path. `_contract!` methods
+Tag for the native NDTensors contract path. `contract!` methods
 dispatched on `::NativeContract` carry the existing per-tensor-type
 implementations (block-sparse loop, dense GEMM, diag, ...).
 """
@@ -68,17 +89,22 @@ end
     is_applicable(alg::ContractAlgorithm, t1, t2) -> Bool
     is_applicable(alg::ContractAlgorithm, T1::Type, T2::Type) -> Bool
 
-Whether `alg` can handle a contraction of `t1` and `t2`. Backends opt in
-by overloading the type form for their supported input types; the value
-form forwards to the type form by default. Backends that need runtime
-information (e.g. block counts) can overload the value form directly.
+Whether `alg` can handle a contraction of `t1` and `t2`. The value form
+forwards to the type form by default; backends that need runtime
+information (e.g. block counts, sizes) can overload the value form
+directly.
 
-The supertype default returns `true` — each concrete algorithm declares
-its own support set with an explicit reject-everything overload plus
-specific accepts, e.g.:
+The supertype default at `(::ContractAlgorithm, ::Type, ::Type)` returns
+`true` — i.e. "assume applicable unless the algorithm says otherwise."
+Concrete narrow algorithms typically opt out for everything they can't
+handle by adding an explicit reject-everything overload at their own
+type, then opt back in for the input types they do handle:
 
     is_applicable(::MyAlg, ::Type, ::Type) = false
     is_applicable(::MyAlg, ::Type{<:MyTensorType}, ::Type{<:MyTensorType}) = true
+
+Universally-applicable algorithms can simply inherit the supertype
+default and skip the per-algorithm reject overload.
 """
 is_applicable(alg::ContractAlgorithm, t1, t2) =
     is_applicable(alg, typeof(t1), typeof(t2))

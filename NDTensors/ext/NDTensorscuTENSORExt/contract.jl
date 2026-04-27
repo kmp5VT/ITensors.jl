@@ -3,7 +3,7 @@ using NDTensors.Expose: expose
 using NDTensors: NDTensors, BlockSparseTensor, ContractAlgorithm, Dense, DenseTensor,
     NativeContract, TensorAndContractionPlan, array, blockdim, blockdims, contract!, data,
     datatype, default_contract_algorithm, eachnzblock, inds, is_applicable, nblocks,
-    nnzblocks, nzblocks, with_contract_algorithm
+    nzblocks, with_contract_algorithm
 using cuTENSOR: cuTENSOR, CuArray, CuTensor
 
 # ============================================================
