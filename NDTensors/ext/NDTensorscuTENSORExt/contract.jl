@@ -35,13 +35,15 @@ function NDTensors.contract!(
         tensor1::BlockSparseTensor,
         labelstensor1,
         tensor2::BlockSparseTensor,
-        labelstensor2
+        labelstensor2,
+        α::Number = one(eltype(dest.tensor)),
+        β::Number = zero(eltype(dest.tensor))
     ) where {T <: BlockSparseTensor}
     R = dest.tensor
     cuR = to_cuTensorBS(R, labelsR)
     cuT1 = to_cuTensorBS(tensor1, labelstensor1)
     cuT2 = to_cuTensorBS(tensor2, labelstensor2)
-    cuTENSOR.mul!(cuR, cuT1, cuT2, one(eltype(R)), zero(eltype(R)))
+    cuTENSOR.mul!(cuR, cuT1, cuT2, α, β)
     return R::T
 end
 

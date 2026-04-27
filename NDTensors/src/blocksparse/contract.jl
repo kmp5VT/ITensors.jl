@@ -48,17 +48,50 @@ function contract!(
         tensor1::BlockSparseTensor,
         labelstensor1,
         tensor2::BlockSparseTensor,
-        labelstensor2
+        labelstensor2,
+        α::Number = one(eltype(dest.tensor)),
+        β::Number = zero(eltype(dest.tensor))
     ) where {T <: BlockSparseTensor}
     R = dest.tensor
     contraction_plan = dest.contraction_plan
     isempty(contraction_plan) && return R
     if using_threaded_blocksparse() && nthreads() > 1
         return contract_blocksparse_threaded_folds!(
-            R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
+            R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan,
+            α, β
         )::T
     end
     return contract_blocksparse_sequential!(
-        R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan
+        R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan,
+        α, β
     )::T
+end
+
+# `mul!`-style entry for `BlockSparseTensor` outputs that arrive without a
+# precomputed contraction plan (the plan is normally produced by
+# `contraction_output` for the `*` flow). Build the plan from the input
+# blocks against `R`'s indices, then delegate to the
+# `TensorAndContractionPlan`-keyed method above.
+function contract!(
+        ::NativeContract,
+        R::BlockSparseTensor,
+        labelsR,
+        tensor1::BlockSparseTensor,
+        labelstensor1,
+        tensor2::BlockSparseTensor,
+        labelstensor2,
+        α::Number = one(eltype(R)),
+        β::Number = zero(eltype(R))
+    )
+    _, contraction_plan = contract_blockoffsets(
+        blockoffsets(tensor1), inds(tensor1), labelstensor1,
+        blockoffsets(tensor2), inds(tensor2), labelstensor2,
+        inds(R), labelsR
+    )
+    return contract!(
+        NativeContract(),
+        TensorAndContractionPlan(R, contraction_plan),
+        labelsR, tensor1, labelstensor1, tensor2, labelstensor2,
+        α, β
+    )
 end

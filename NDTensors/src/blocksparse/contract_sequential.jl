@@ -47,11 +47,13 @@ function contract_blocksparse_sequential!(
         labelstensor1,
         tensor2::BlockSparseTensor,
         labelstensor2,
-        contraction_plan
+        contraction_plan,
+        α::Number = one(eltype(R)),
+        β::Number = zero(eltype(R))
     )
     executor = SequentialEx()
-    return contract!(
+    return contract_blocksparse_with_executor!(
         R, labelsR, tensor1, labelstensor1, tensor2, labelstensor2, contraction_plan,
-        executor
+        executor, α, β
     )
 end

@@ -177,8 +177,9 @@ function contract!(
 end
 
 function contract!(
-        dest::TensorAndContractionPlan{T}, lR, t1::Tensor, l1, t2::Tensor, l2
+        dest::TensorAndContractionPlan{T}, lR, t1::Tensor, l1, t2::Tensor, l2,
+        α::Number = one(Bool), β::Number = zero(Bool)
     ) where {T <: Tensor}
     alg = select_contract_algorithm(DefaultContract(), t1, t2)
-    return contract!(alg, dest, lR, t1, l1, t2, l2)::T
+    return contract!(alg, dest, lR, t1, l1, t2, l2, α, β)::T
 end

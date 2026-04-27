@@ -145,10 +145,13 @@ function contract!!(
         tensor1::Tensor,
         labelstensor1,
         tensor2::Tensor,
-        labelstensor2
+        labelstensor2,
+        α::Number = one(eltype(dest.tensor)),
+        β::Number = zero(eltype(dest.tensor))
     )
     return contract!(
-        dest, labelsoutput_tensor, tensor1, labelstensor1, tensor2, labelstensor2
+        dest, labelsoutput_tensor, tensor1, labelstensor1, tensor2, labelstensor2,
+        α, β
     )
 end
 
