@@ -43,7 +43,31 @@ function NDTensors.contract!(
     cuR = to_cuTensorBS(R, labelsR)
     cuT1 = to_cuTensorBS(tensor1, labelstensor1)
     cuT2 = to_cuTensorBS(tensor2, labelstensor2)
-    cuTENSOR.mul!(cuR, cuT1, cuT2, α, β)
+    try
+        cuTENSOR.mul!(cuR, cuT1, cuT2, α, β)
+    catch e
+        e isa cuTENSOR.CUTENSORError || rethrow()
+        # cuTENSOR couldn't run this contraction (typically an unsupported
+        # operation). Surface what was suppressed, then fall back to the
+        # native block-sparse path. Non-CUTENSORError exceptions (OOM,
+        # driver mismatch, version regression, internal bugs) propagate.
+        @warn "cuTENSOR block-sparse contract failed; falling back to NativeContract." exception =
+            (
+            e,
+            catch_backtrace(),
+        )
+        return contract!(
+            NativeContract(),
+            dest,
+            labelsR,
+            tensor1,
+            labelstensor1,
+            tensor2,
+            labelstensor2,
+            α,
+            β
+        )::T
+    end
     return R::T
 end
 
@@ -151,7 +175,15 @@ function NDTensors.contract!(
         cuTENSOR.mul!(cuR, cuT1, cuT2, α, β)
     catch e
         e isa cuTENSOR.CUTENSORError || rethrow()
-        # Fall back to the native (cuBLAS-loop) path for ops cuTENSOR doesn't support.
+        # cuTENSOR couldn't run this contraction (typically an unsupported
+        # operation). Surface what was suppressed, then fall back to the
+        # native (cuBLAS-loop) path. Non-CUTENSORError exceptions (OOM,
+        # driver mismatch, version regression, internal bugs) propagate.
+        @warn "cuTENSOR dense contract failed; falling back to NativeContract." exception =
+            (
+            e,
+            catch_backtrace(),
+        )
         contract!(NativeContract(), R, labelsR, T1, labelsT1, T2, labelsT2, α, β)
         return R
     end
