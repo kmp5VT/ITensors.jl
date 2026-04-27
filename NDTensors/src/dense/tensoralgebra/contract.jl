@@ -174,13 +174,6 @@ function contract!(
         return R
     end
 
-    if using_tblis() && ElR <: LinearAlgebra.BlasReal && (ElR == ElT1 == ElT2 == Elα == Elβ)
-        #@timeit_debug timer "TBLIS contract!" begin
-        contract!(Val(:TBLIS), R, labelsR, T1, labelsT1, T2, labelsT2, α, β)
-        #end
-        return R
-    end
-
     if N1 + N2 == NR
         outer!(R, T1, T2)
         labelsRp = (labelsT1..., labelsT2...)

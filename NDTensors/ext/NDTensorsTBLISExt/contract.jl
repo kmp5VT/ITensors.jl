@@ -1,13 +1,13 @@
-function contract!(
-        ::Val{:TBLIS},
+function NDTensors.contract!(
+        ::NDTensors.TBLIS,
         R::DenseTensor{ElT},
         labelsR,
         T1::DenseTensor{ElT},
         labelsT1,
         T2::DenseTensor{ElT},
         labelsT2,
-        α::ElT,
-        β::ElT
+        α::Number = one(ElT),
+        β::Number = zero(ElT)
     ) where {ElT <: LinearAlgebra.BlasReal}
     # TBLIS Tensors
     R_tblis = TBLIS.TTensor{ElT}(array(R), β)

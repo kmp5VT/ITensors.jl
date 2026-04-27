@@ -64,6 +64,7 @@ include("abstractarray/tensoralgebra/contract.jl")
 include("dense/dense.jl")
 include("dense/densetensor.jl")
 include("dense/tensoralgebra/contract.jl")
+include("dense/tensoralgebra/tblis.jl")
 include("dense/linearalgebra/decompositions.jl")
 include("dense/tensoralgebra/outer.jl")
 include("dense/set_types.jl")
@@ -225,20 +226,6 @@ end
 #####################################
 # Optional backends
 #
-
-const _using_tblis = Ref(false)
-
-using_tblis() = _using_tblis[]
-
-function enable_tblis()
-    _using_tblis[] = true
-    return nothing
-end
-
-function disable_tblis()
-    _using_tblis[] = false
-    return nothing
-end
 
 function backend_octavian end
 
