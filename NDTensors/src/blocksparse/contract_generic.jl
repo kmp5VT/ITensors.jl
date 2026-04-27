@@ -123,11 +123,11 @@ function _contract!(
             )
 
             contract!(
-                expose(R[blockR]),
+                R[blockR],
                 labelsR,
-                expose(tensor1[blocktensor1]),
+                tensor1[blocktensor1],
                 labelstensor1,
-                expose(tensor2[blocktensor2]),
+                tensor2[blocktensor2],
                 labelstensor2,
                 α,
                 β
