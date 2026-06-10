@@ -1,4 +1,4 @@
-name: "FormatCheck"
+name: "VersionCheckNDTensors"
 on:
   pull_request:
     types:
@@ -11,7 +11,11 @@ concurrency:
   cancel-in-progress: "${{ startsWith(github.ref, 'refs/pull/') }}"
 permissions:
   contents: "read"
+  pull-requests: "read"
 jobs:
-  format-check:
-    name: "FormatCheck"
-    uses: "ITensor/ITensorActions/.github/workflows/FormatCheck.yml@v2"
+  version-check:
+    name: "VersionCheckNDTensors"
+    uses: "ITensor/ITensorActions/.github/workflows/VersionCheck.yml@v2"
+    with:
+      subdir: "NDTensors"
+      localregistry: "https://github.com/ITensor/ITensorRegistry.git"
